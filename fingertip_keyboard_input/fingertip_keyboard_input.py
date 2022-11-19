@@ -23,8 +23,8 @@ def draw_path(image, points):
     return image
 
 def mediapipe_hand_setup(model_complexity=0,
-                         min_detection_confidence=0.5,
-                         min_tracking_confidence=0.9):
+                         min_detection_confidence=0.9,
+                         min_tracking_confidence=0.95):
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(model_complexity=model_complexity,
                            min_detection_confidence=min_detection_confidence,
@@ -59,16 +59,19 @@ while cap.isOpened():
         for i in range(num_hands):
             score, handedness, hand_landmarks = util.get_mediapipe_result(results, i)
             
-            if handedness == 'Right': 
-                    x_pixel = int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x\
-                                  * image_width)
-                    y_pixel = int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y\
-                                  * image_height)
-                    fingertip_path_right.append((x_pixel, y_pixel))
-            
             category = util.recognize_gesture(templates, templates_category, hand_landmarks)
             util.mediapipe_draw(image, hand_landmarks, mp_hands, mp_drawing, mp_drawing_styles)
             cv2.putText(image, 'pose: ' + category, (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
+
+            if category == 'one' and handedness == 'Right':
+                x_pixel = int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x\
+                                  * image_width)
+                y_pixel = int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y\
+                                * image_height)
+                fingertip_path_right.append((x_pixel, y_pixel))
+
+            if category == 'fist_left' and handedness == 'Left':
+                fingertip_path_right = []
 
         # draw the path of the fingertip
         image = draw_path(image, fingertip_path_right)
