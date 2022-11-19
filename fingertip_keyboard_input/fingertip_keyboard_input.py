@@ -8,6 +8,7 @@ import sys
 import numpy as np
 import cv2
 import mediapipe as mp
+import time
 
 sys.path.append('../two_handed_gestures/gesture_mapping')
 
@@ -35,7 +36,9 @@ def mediapipe_hand_setup(model_complexity=0,
 mp_drawing, mp_drawing_styles = util.mediapipe_draw_setup()
 hands, mp_hands = mediapipe_hand_setup()
 # gesture recognition setup
-templates, templates_category = util.load_temp('../two_handed_gestures/gesture_mapping/data/template_image_new_wide_data/')
+templates, templates_category = util.load_temp(\
+    '../two_handed_gestures/gesture_mapping/data/template_image_new_wide_data/')
+
 # video streaming setup
 cap = cv2.VideoCapture(0)
 
@@ -44,6 +47,10 @@ fingertip_path_right = []
 
 # loop start
 while cap.isOpened():
+    # get tick count for measuring latency
+    # https://docs.opencv.org/4.x/dc/d71/tutorial_py_optimization.html
+    tick_start = cv2.getTickCount()
+
     # image shape: height * width = 720 * 1280, 9:16
     success, image = cap.read()
     image = cv2.flip(image, 1)
@@ -80,6 +87,13 @@ while cap.isOpened():
         fingertip_path_right = []
 
     cv2.imshow('MediaPipe Hands', image)
+
+    # calculate latency
+    tick_end = cv2.getTickCount()
+    latency = (tick_end - tick_start) / cv2.getTickFrequency()
+
+    print('Latency: {} seconds'.format(latency))
+
     if cv2.waitKey(5) & 0xFF == 27:
         break
 
