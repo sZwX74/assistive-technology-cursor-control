@@ -15,9 +15,8 @@ sys.path.append('../two_handed_gestures/gesture_mapping')
 import alignment as alignment
 import util
 
-def draw_path(image, points):
+def draw_path(image, points, color=((0, 255, 0))):
     thickness = 5
-    color = (0, 255, 0)
     for i in range(0, len(points) - 1):
         image = cv2.line(image, points[i], points[i+1], color, thickness)
 
@@ -55,6 +54,8 @@ while cap.isOpened():
     success, image = cap.read()
     image = cv2.flip(image, 1)
     image_height, image_width, channels = image.shape
+    drawn_image = np.zeros(image.shape, dtype=np.uint8)
+    drawn_image.fill(255)
 
     if not success:
         print("Ignoring empty camera frame.")
@@ -65,7 +66,7 @@ while cap.isOpened():
     if mp_success:
         for i in range(num_hands):
             score, handedness, hand_landmarks = util.get_mediapipe_result(results, i)
-            
+
             category = util.recognize_gesture(templates, templates_category, hand_landmarks)
             util.mediapipe_draw(image, hand_landmarks, mp_hands, mp_drawing, mp_drawing_styles)
             cv2.putText(image, 'pose: ' + category, (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
@@ -78,15 +79,17 @@ while cap.isOpened():
                 fingertip_path_right.append((x_pixel, y_pixel))
 
             if category == 'fist_left' and handedness == 'Left':
+                drawn_image = draw_path(drawn_image, fingertip_path_right, color=(0, 0, 0))
                 fingertip_path_right = []
 
         # draw the path of the fingertip
         image = draw_path(image, fingertip_path_right)
-    
+        
     else:
         fingertip_path_right = []
 
     cv2.imshow('MediaPipe Hands', image)
+    cv2.imshow('Drawn Image', drawn_image)
 
     # calculate latency
     tick_end = cv2.getTickCount()
