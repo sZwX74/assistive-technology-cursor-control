@@ -44,6 +44,11 @@ cap = cv2.VideoCapture(0)
 # array to hold drawn points
 fingertip_path_right = []
 
+# store previous gesture (to test if path should be redrawn)
+prev_left_gesture = None
+
+drawn_image = None
+
 # loop start
 while cap.isOpened():
     # get tick count for measuring latency
@@ -54,8 +59,12 @@ while cap.isOpened():
     success, image = cap.read()
     image = cv2.flip(image, 1)
     image_height, image_width, channels = image.shape
-    drawn_image = np.zeros(image.shape, dtype=np.uint8)
-    drawn_image.fill(255)
+
+    # Initialize the Drawn Image into a new image and display window
+    if drawn_image is None:
+        drawn_image = np.zeros(image.shape, dtype=np.uint8)
+        drawn_image.fill(255)
+        cv2.imshow('Drawn Image', drawn_image)
 
     if not success:
         print("Ignoring empty camera frame.")
@@ -69,8 +78,10 @@ while cap.isOpened():
 
             category = util.recognize_gesture(templates, templates_category, hand_landmarks)
             util.mediapipe_draw(image, hand_landmarks, mp_hands, mp_drawing, mp_drawing_styles)
-            cv2.putText(image, 'pose: ' + category, (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
+            cv2.putText(image, 'pose: ' + category, (10, 150),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
 
+            # if right hand is pose 'one', append fingertip path
             if category == 'one' and handedness == 'Right':
                 x_pixel = int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x\
                                   * image_width)
@@ -78,9 +89,21 @@ while cap.isOpened():
                                 * image_height)
                 fingertip_path_right.append((x_pixel, y_pixel))
 
+            # if left hand is a fist, show path on rising edge and reset path
             if category == 'fist_left' and handedness == 'Left':
-                drawn_image = draw_path(drawn_image, fingertip_path_right, color=(0, 0, 0))
+
+                # on rising edge, draw path in separate window
+                if prev_left_gesture != 'fist_left':
+                    drawn_image.fill(255)
+                    drawn_image = draw_path(drawn_image, fingertip_path_right, color=(0, 0, 0))
+                    cv2.imshow('Drawn Image', drawn_image)
+                
+                # reset path
                 fingertip_path_right = []
+
+            # update previous left gesture
+            if handedness == 'Left':
+                prev_left_gesture = category
 
         # draw the path of the fingertip
         image = draw_path(image, fingertip_path_right)
@@ -89,7 +112,6 @@ while cap.isOpened():
         fingertip_path_right = []
 
     cv2.imshow('MediaPipe Hands', image)
-    cv2.imshow('Drawn Image', drawn_image)
 
     # calculate latency
     tick_end = cv2.getTickCount()
