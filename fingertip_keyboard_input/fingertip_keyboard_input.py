@@ -22,6 +22,8 @@ def draw_path(image, points, color=((0, 255, 0))):
 
     return image
 
+# custom mediapipe_hand_setup (instead of using util.mediapipe_hand_setup)
+# such that we can set detection and tracking confidence
 def mediapipe_hand_setup(model_complexity=0,
                          min_detection_confidence=0.9,
                          min_tracking_confidence=0.95):
@@ -30,6 +32,52 @@ def mediapipe_hand_setup(model_complexity=0,
                            min_detection_confidence=min_detection_confidence,
                            min_tracking_confidence=min_tracking_confidence)
     return hands, mp_hands
+
+def crop_and_draw_path(drawn_image, points):
+    # do not draw if there are not enough points
+    if len(points) < 2 :
+        return None
+
+    # factor that is scaled around image
+    factor = 1.5
+
+    # draw the path on an image the same size as input
+    drawn_image.fill(0)
+    drawn_image = draw_path(drawn_image, fingertip_path_right, color=255)
+
+    # show that drawn image
+    # cv2.imshow('Drawn Image', drawn_image)
+    
+    # get the min and max x and y coordinate
+    points_arr = np.array(points)
+    min_x = min(points_arr[:, 0])
+    max_x = max(points_arr[:, 0])
+    min_y = min(points_arr[:, 1])
+    max_y = max(points_arr[:, 1])
+
+    # get the center of the drawn path
+    center_x = (max_x + min_x) / 2
+    center_y = (max_y + min_y) / 2
+
+    # get the dimension of half of one of the sides of the square bounding box
+    dist_from_center = max(center_x - min_x, center_y - min_y)
+
+    # get x and y coordinates for cropping. Includes error checking for out of bounds and
+    # a factor (so that the drawn path does not go to the edge of the image)
+    cropped_x_min = int(max((center_x - factor * dist_from_center), 0))
+    cropped_x_max = int(min((center_x + factor * dist_from_center), drawn_image.shape[1]))
+    cropped_y_min = int(max((center_y - factor * dist_from_center), 0))
+    cropped_y_max = int(min((center_y + factor * dist_from_center), drawn_image.shape[0]))
+
+    # notice that the slices are flipped, as x is the second dimension and y is the first dimension
+    drawn_image = drawn_image[cropped_y_min:cropped_y_max, cropped_x_min:cropped_x_max]
+
+    # resize image to 28x28 for MNIST dataset
+    resized_image = cv2.resize(drawn_image, (28, 28))
+
+    cv2.imshow('Resized Image', resized_image)
+
+    return resized_image
 
 # mediapipe setup
 mp_drawing, mp_drawing_styles = util.mediapipe_draw_setup()
@@ -62,8 +110,7 @@ while cap.isOpened():
 
     # Initialize the Drawn Image into a new image and display window
     if drawn_image is None:
-        drawn_image = np.zeros(image.shape, dtype=np.uint8)
-        drawn_image.fill(255)
+        drawn_image = np.zeros(image.shape[0:2], dtype=np.uint8)
         cv2.imshow('Drawn Image', drawn_image)
 
     if not success:
@@ -94,9 +141,7 @@ while cap.isOpened():
 
                 # on rising edge, draw path in separate window
                 if prev_left_gesture != 'fist_left':
-                    drawn_image.fill(255)
-                    drawn_image = draw_path(drawn_image, fingertip_path_right, color=(0, 0, 0))
-                    cv2.imshow('Drawn Image', drawn_image)
+                    crop_and_draw_path(drawn_image, fingertip_path_right)
                 
                 # reset path
                 fingertip_path_right = []
