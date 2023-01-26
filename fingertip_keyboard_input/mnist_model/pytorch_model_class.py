@@ -1,0 +1,64 @@
+import torch
+import torch.nn as nn
+
+
+class NetRelu(nn.Module): # base virtual class
+    def __init__(self, ):
+        super().__init__()
+        self.layers = nn.Sequential()
+        self.name = 'NetRelu'
+
+    def forward(self, x):
+        return self.layers(x)
+
+    def save_model(self, path):
+        torch.save(self.state_dict(), path + '/' + self.name)
+
+    def load_model(self, path):
+        self.load_state_dict(torch.load(path + '/' + self.name))
+        self.eval()
+
+
+class NetReluShallow(NetRelu): # shallow model that allows self define size
+    # Constructor
+    def __init__(self, D_in, H1, H2, D_out):
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Linear(D_in, H1),
+            nn.ReLU(),
+            nn.Linear(H1, H2),
+            nn.ReLU(),
+            nn.Linear(H2, D_out)
+        )
+        self.mec = (D_in + 1) * H1 +\
+                   min(H1, (H1 + 1) * H2) +\
+                    min(H2, (H2 + 1) * D_out)
+        self.name = 'NetReluShallow_MEC_' + str(self.mec) + '_DIM_' + str(D_in) + '_' + str(H1) + '_' + str(H2) + '_' + str(D_out)
+        print('created model: ', self.name)
+
+
+class NetReluDeep(NetRelu): # deep dark fantasy
+    def __init__(self):
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Linear(784,4096),
+            nn.ReLU(),
+            nn.Linear(4096,2048),
+            nn.ReLU(),
+            nn.Linear(2048,1024),
+            nn.ReLU(),
+            nn.Linear(1024,512),
+            nn.ReLU(),
+            nn.Linear(512,256),
+            nn.ReLU(),
+            nn.Linear(256,128),
+            nn.ReLU(),
+            nn.Linear(128,64),
+            nn.ReLU(),
+            nn.Linear(64,32),
+            nn.ReLU(),
+            nn.Linear(32,16),
+            nn.ReLU(),
+            nn.Linear(16,10))
+        self.name = 'NetReluDeep'
+        print('created model: ', self.name)
