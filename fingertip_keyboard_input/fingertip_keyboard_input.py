@@ -10,13 +10,16 @@ import cv2
 import mediapipe as mp
 import time
 
+
 sys.path.append('../two_handed_gestures/gesture_mapping')
+sys.path.append('./mnist_model/')
 
 import alignment as alignment
 import util
+import torch
+import pytorch_model_class
 
-def draw_path(image, points, color=((0, 255, 0))):
-    thickness = 5
+def draw_path(image, points, color=((0, 255, 0)), thickness=10):
     for i in range(0, len(points) - 1):
         image = cv2.line(image, points[i], points[i+1], color, thickness)
 
@@ -39,14 +42,7 @@ def crop_and_draw_path(drawn_image, points):
         return None
 
     # factor that is scaled around image
-    factor = 1.5
-
-    # draw the path on an image the same size as input
-    drawn_image.fill(0)
-    drawn_image = draw_path(drawn_image, fingertip_path_right, color=255)
-
-    # show that drawn image
-    # cv2.imshow('Drawn Image', drawn_image)
+    factor = 1.7
     
     # get the min and max x and y coordinate
     points_arr = np.array(points)
@@ -68,6 +64,18 @@ def crop_and_draw_path(drawn_image, points):
     cropped_x_max = int(min((center_x + factor * dist_from_center), drawn_image.shape[1]))
     cropped_y_min = int(max((center_y - factor * dist_from_center), 0))
     cropped_y_max = int(min((center_y + factor * dist_from_center), drawn_image.shape[0]))
+
+    # draw the path on an image the same size as input
+    drawn_image.fill(0)
+    
+    # adjust the thickness based on the size of the overall drawing
+    # ensure the thickness is also greater than 1
+    thickness = max(1, int(dist_from_center / 10))
+
+    drawn_image = draw_path(drawn_image, fingertip_path_right, color=255, thickness=thickness)
+
+    # show that drawn image
+    # cv2.imshow('Drawn Image', drawn_image)
 
     # notice that the slices are flipped, as x is the second dimension and y is the first dimension
     drawn_image = drawn_image[cropped_y_min:cropped_y_max, cropped_x_min:cropped_x_max]
@@ -97,6 +105,16 @@ prev_left_gesture = None
 
 drawn_image = None
 
+# Set the parameters and create the model
+D_in = 28 * 28
+H1 = 100
+H2 = 100
+D_out = 10
+
+# load ML classification model
+model = pytorch_model_class.NetReluShallow(D_in, H1, H2, D_out)
+model.load_model(path = './mnist_model/saved_models/')
+
 # loop start
 while cap.isOpened():
     # get tick count for measuring latency
@@ -111,7 +129,7 @@ while cap.isOpened():
     # Initialize the Drawn Image into a new image and display window
     if drawn_image is None:
         drawn_image = np.zeros(image.shape[0:2], dtype=np.uint8)
-        cv2.imshow('Drawn Image', drawn_image)
+        # cv2.imshow('Drawn Image', drawn_image)
 
     if not success:
         print("Ignoring empty camera frame.")
@@ -141,8 +159,16 @@ while cap.isOpened():
 
                 # on rising edge, draw path in separate window
                 if prev_left_gesture != 'fist_left':
-                    crop_and_draw_path(drawn_image, fingertip_path_right)
-                
+                    drawn_path_resized = crop_and_draw_path(drawn_image, fingertip_path_right)
+
+                    if drawn_path_resized is not None:
+                        tensor_input_image = drawn_path_resized.reshape((-1, 28*28))
+                        character_confidences = model(torch.from_numpy(tensor_input_image) / 255)
+                        
+                        _, label = torch.max(character_confidences, axis=1)
+                        print(label)
+
+
                 # reset path
                 fingertip_path_right = []
 
@@ -162,7 +188,7 @@ while cap.isOpened():
     tick_end = cv2.getTickCount()
     latency = (tick_end - tick_start) / cv2.getTickFrequency()
 
-    print('Latency: {} seconds'.format(latency))
+    # print('Latency: {} seconds'.format(latency))
 
     if cv2.waitKey(5) & 0xFF == 27:
         break
