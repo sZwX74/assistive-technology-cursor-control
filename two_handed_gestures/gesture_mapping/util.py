@@ -74,7 +74,7 @@ def recognize_gesture(templates, templates_category, hand_landmarks):
             # valid `matrix`. default (dstH, dstW) is (1.0, 1.0)
             # matrix = get_resize_matrix(1.0, 1.0, dstW, dstH).dot(matrix)
             # scale = math.sqrt(matrix[0,0] ** 2 + matrix[0,1] ** 2)
-            print(recog_score)
+            # print(recog_score)
             
             if recog_score > best_score:
                 category = pose_category
