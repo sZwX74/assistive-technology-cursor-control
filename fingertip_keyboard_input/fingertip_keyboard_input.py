@@ -9,6 +9,7 @@ import numpy as np
 import cv2
 import mediapipe as mp
 import time
+from pynput.keyboard import Key, Controller
 
 
 sys.path.append('../two_handed_gestures/gesture_mapping')
@@ -115,6 +116,9 @@ D_out = 10
 model = pytorch_model_class.NetReluShallow(D_in, H1, H2, D_out)
 model.load_model(path = './mnist_model/saved_models/')
 
+# keyboard setup
+keyboard = Controller()
+
 # loop start
 while cap.isOpened():
     # get tick count for measuring latency
@@ -166,7 +170,9 @@ while cap.isOpened():
                         character_confidences = model(torch.from_numpy(tensor_input_image) / 255)
                         
                         _, label = torch.max(character_confidences, axis=1)
-                        print(label)
+                        print(f'Recognized character: {int(label)}')
+                        keyboard.press(str(int(label)))
+                        keyboard.release(str(int(label)))
 
 
                 # reset path
