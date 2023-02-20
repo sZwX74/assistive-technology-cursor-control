@@ -87,6 +87,50 @@ def crop_and_draw_path(drawn_image, points):
 
     return resized_image
 
+def draw_modifiers_boxes(image, percent=0.2, color=((0, 255, 0)), thickness=3):
+    image_height, image_width, __ = image.shape
+    bksp_start_point = [0,0]
+    height_ratio = 0.5
+    bksp_end_point = [int(image_width * percent), int(image_height * height_ratio)]
+
+    image = cv2.rectangle(image, bksp_start_point, bksp_end_point, color, thickness)
+
+    cv2.putText(image, 'Back', [int(image_width*percent / 5), int(image_height * 0.5 * (2./5))],
+                cv2.FONT_HERSHEY_SIMPLEX, 1, color, thickness)
+    cv2.putText(image, 'space', [int(image_width*percent / 5), int(image_height * 0.5 * (3./5))],
+                cv2.FONT_HERSHEY_SIMPLEX, 1, color, thickness)
+
+    bksp_end_percentage = [percent, height_ratio]
+
+    return image, bksp_end_percentage
+
+def modifiers_hand_position(mp_hands, hand_landmarks):
+    hand_points_interest_x = \
+        [hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x, 
+         hand_landmarks.landmark[mp_hands.HandLandmark.WRIST].x,
+         hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_CMC].x,
+         hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_MCP].x,
+         hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_MCP].x,
+         hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_MCP].x,
+         hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_MCP].x,
+         hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_MCP].x
+        ]
+
+    hand_points_interest_y = \
+        [hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y, 
+         hand_landmarks.landmark[mp_hands.HandLandmark.WRIST].y,
+         hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_CMC].y,
+         hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_MCP].y,
+         hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_MCP].y,
+         hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_MCP].y,
+         hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_MCP].y,
+         hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_MCP].y
+        ]
+
+    hand_pos = [np.mean(hand_points_interest_x), np.mean(hand_points_interest_y)]
+
+    return hand_pos
+
 # mediapipe setup
 mp_drawing, mp_drawing_styles = util.mediapipe_draw_setup()
 hands, mp_hands = mediapipe_hand_setup()
@@ -103,6 +147,7 @@ fingertip_path_right = []
 # store previous gesture for rising edge of gesture
 prev_left_gesture = None
 prev_right_gesture = None
+backspace_available = False
 
 drawn_image = None
 
@@ -139,6 +184,10 @@ while cap.isOpened():
         print("Ignoring empty camera frame.")
         # streaming: continue; vedio: break
         continue
+
+    # draw the bounding box for the backspace area of the screen
+    image, bksp_end_percentage = draw_modifiers_boxes(image)
+
     # get hand keypoints
     mp_success, num_hands, results = util.mediapipe_process(image, hands)
     if mp_success:
@@ -147,7 +196,7 @@ while cap.isOpened():
 
             category = util.recognize_gesture(templates, templates_category, hand_landmarks)
             util.mediapipe_draw(image, hand_landmarks, mp_hands, mp_drawing, mp_drawing_styles)
-            cv2.putText(image, 'pose: ' + category, (10, 150),
+            cv2.putText(image, 'pose: ' + category, (10, image_height - 50),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
 
             if handedness == 'Right':
@@ -186,7 +235,22 @@ while cap.isOpened():
 
 
             if handedness == "Left":
-                # backspace once
+                # get hand position (as a percentage)
+                hand_pos_percent = modifiers_hand_position(mp_hands, hand_landmarks)
+                
+                # if in backspace box, backspace once
+                if hand_pos_percent[0] < bksp_end_percentage[0] and hand_pos_percent[1]\
+                                                                    < bksp_end_percentage[1]:
+                    if not backspace_available:
+                        keyboard.press(Key.backspace)
+                        keyboard.release(Key.backspace)
+                        backspace_available = True
+                
+                # once hand leaves the box, make backspace possible again
+                else:
+                    backspace_available = False
+
+                # backspace once using gesture
                 if category == "one_left" and prev_left_gesture != "one_left":
                     keyboard.press(Key.backspace)
                     keyboard.release(Key.backspace)
