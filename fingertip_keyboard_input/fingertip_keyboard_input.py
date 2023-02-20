@@ -11,7 +11,6 @@ import mediapipe as mp
 import time
 from pynput.keyboard import Key, Controller
 
-
 sys.path.append('../two_handed_gestures/gesture_mapping')
 sys.path.append('./mnist_model/')
 
@@ -101,8 +100,9 @@ cap = cv2.VideoCapture(0)
 # array to hold drawn points
 fingertip_path_right = []
 
-# store previous gesture (to test if path should be redrawn)
+# store previous gesture for rising edge of gesture
 prev_left_gesture = None
+prev_right_gesture = None
 
 drawn_image = None
 
@@ -150,19 +150,19 @@ while cap.isOpened():
             cv2.putText(image, 'pose: ' + category, (10, 150),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
 
-            # if right hand is pose 'one', append fingertip path
-            if category == 'one' and handedness == 'Right':
-                x_pixel = int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x\
-                                  * image_width)
-                y_pixel = int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y\
-                                * image_height)
-                fingertip_path_right.append((x_pixel, y_pixel))
+            if handedness == 'Right':
+                # if right hand is pose 'one', append fingertip path
+                if category == 'one':
+                    x_pixel = int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x\
+                                    * image_width)
+                    y_pixel = int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y\
+                                    * image_height)
+                    fingertip_path_right.append((x_pixel, y_pixel))
 
-            # if left hand is a fist, show path on rising edge and reset path
-            if category == 'fist_left' and handedness == 'Left':
+                # if right hand is a fist, show path on rising edge and reset path
+                if category == 'fist' and prev_right_gesture != 'fist':
 
-                # on rising edge, draw path in separate window
-                if prev_left_gesture != 'fist_left':
+                    # on rising edge, draw path in separate window
                     drawn_path_resized = crop_and_draw_path(drawn_image, fingertip_path_right)
 
                     if drawn_path_resized is not None:
@@ -174,12 +174,24 @@ while cap.isOpened():
                         keyboard.press(str(int(label)))
                         keyboard.release(str(int(label)))
 
+                    # reset path
+                    fingertip_path_right = []
 
-                # reset path
-                fingertip_path_right = []
+                # if right hand is a four, discard drawing
+                if category == "four" and prev_right_gesture != "four":
+                    fingertip_path_right = []
 
-            # update previous left gesture
-            if handedness == 'Left':
+                # update previous right gesture
+                prev_right_gesture = category
+
+
+            if handedness == "Left":
+                # backspace once
+                if category == "one_left" and prev_left_gesture != "one_left":
+                    keyboard.press(Key.backspace)
+                    keyboard.release(Key.backspace)
+
+                # update previous right gesture
                 prev_left_gesture = category
 
         # draw the path of the fingertip
