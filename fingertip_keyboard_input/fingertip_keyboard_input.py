@@ -12,12 +12,13 @@ import time
 from pynput.keyboard import Key, Controller
 
 sys.path.append('../two_handed_gestures/gesture_mapping')
-sys.path.append('./mnist_model/')
+sys.path.append('./emnist_model/')
 
 import alignment as alignment
 import util
 import torch
 import pytorch_model_class
+from pytorch_model_class import DEVICE
 
 def draw_path(image, points, color=((0, 255, 0)), thickness=10):
     for i in range(0, len(points) - 1):
@@ -158,11 +159,22 @@ H2 = 100
 D_out = 10
 
 # load ML classification model
-model = pytorch_model_class.NetReluShallow(D_in, H1, H2, D_out)
-model.load_model(path = './mnist_model/saved_models/')
+model = pytorch_model_class.CNN_SRM().to(DEVICE)
+model.load_model(path = './emnist_model/saved_models')
 
 # keyboard setup
 keyboard = Controller()
+
+# mapping of characters to digits
+char_map = { 0: '0',  1: '1',  2: '2',  3: '3',  4: '4',  5: '5',  6: '6',  7: '7',  8: '8', 9: '9',
+            10: 'a', 11: 'b', 12: 'c', 13: 'd', 14: 'e', 15: 'f', 16: 'g', 17: 'h', 18: 'i',
+            19: 'j', 20: 'k', 21: 'l', 22: 'm', 23: 'n', 24: 'o', 25: 'p', 26: 'q', 27: 'r',
+            28: 's', 29: 't', 30: 'u', 31: 'v', 32: 'w', 33: 'x', 34: 'y', 35: 'z', 
+            36: 'A', 37: 'B', 38: 'C', 39: 'D', 40: 'E', 41: 'F', 42: 'G', 43: 'H', 44: 'I',
+            45: 'J', 46: 'K', 47: 'L', 48: 'M', 49: 'N', 50: 'O', 51: 'P', 52: 'Q', 53: 'R',
+            54: 'S', 55: 'T', 56: 'U', 57: 'V', 58: 'W', 59: 'X', 60: 'Y', 61: 'Z'
+            }
+
 
 # loop start
 while cap.isOpened():
@@ -215,13 +227,13 @@ while cap.isOpened():
                     drawn_path_resized = crop_and_draw_path(drawn_image, fingertip_path_right)
 
                     if drawn_path_resized is not None:
-                        tensor_input_image = drawn_path_resized.reshape((-1, 28*28))
+                        tensor_input_image = drawn_path_resized.reshape((1, 1, 28, 28))
                         character_confidences = model(torch.from_numpy(tensor_input_image) / 255)
                         
                         _, label = torch.max(character_confidences, axis=1)
-                        print(f'Recognized character: {int(label)}')
-                        keyboard.press(str(int(label)))
-                        keyboard.release(str(int(label)))
+                        print(f'Recognized character: {char_map[int(label)]}')
+                        # keyboard.press(str(int(label)))
+                        # keyboard.release(str(int(label)))
 
                     # reset path
                     fingertip_path_right = []
