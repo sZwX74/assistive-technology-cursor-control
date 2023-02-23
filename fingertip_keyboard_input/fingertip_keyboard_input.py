@@ -166,6 +166,7 @@ model.load_model(path = './emnist_model/saved_models')
 keyboard = Controller()
 
 # mapping of characters to digits
+# mapping based on https://arxiv.org/pdf/1702.05373.pdf, balanced dataset
 char_map = { 0: '0',  1: '1',  2: '2',  3: '3',  4: '4',  5: '5',  6: '6',  7: '7',  8: '8', 9: '9',
             10: 'A', 11: 'B', 12: 'C', 13: 'D', 14: 'E', 15: 'F', 16: 'G', 17: 'H', 18: 'I',
             19: 'J', 20: 'K', 21: 'L', 22: 'M', 23: 'N', 24: 'O', 25: 'P', 26: 'Q', 27: 'R',
@@ -225,13 +226,14 @@ while cap.isOpened():
                     drawn_path_resized = crop_and_draw_path(drawn_image, fingertip_path_right)
 
                     if drawn_path_resized is not None:
-                        tensor_input_image = drawn_path_resized.T.reshape((1, 1, 28, 28))
-                        character_confidences = model(torch.from_numpy(tensor_input_image) / 255)
+                        tensor_input_image_reshaped = drawn_path_resized.T.reshape((1, 1, 28, 28))
+                        tensor_input_image = torch.from_numpy(tensor_input_image_reshaped) / 255
+                        character_confidences = model(tensor_input_image.to(DEVICE))
                         
                         _, label = torch.max(character_confidences, axis=1)
                         print(f'Recognized character: {char_map[int(label)]}')
-                        # keyboard.press(str(int(label)))
-                        # keyboard.release(str(int(label)))
+                        keyboard.press(char_map[int(label)])
+                        keyboard.release(char_map[int(label)])
 
                     # reset path
                     fingertip_path_right = []
