@@ -1,28 +1,29 @@
 alignment==1.0.10
 filterpy==1.4.5
-Flask==1.1.2
+Flask==2.2.3
 flask_socketio==5.3.2
-gevent_socketio==0.3.6
 imutils==0.5.4
-keras==2.10.0
-matplotlib==3.3.4
-mediapipe==0.9.1.0
+joblib==1.2.0
+keras==2.11.0
+matplotlib==3.7.0
+mediapipe; platform_system != "Darwin" or platform.machine != "arm64"
+mediapipe-silicon; platform_system == "Darwin" and platform.machine == "arm64"
+protobuf>=3.11,<4
 moviepy==1.0.3
-numpy==1.19.5
-opencv_python==4.6.0.66
-opencv_contrib_python==4.7.0.68
+numpy==1.24.2
+opencv_contrib_python==4.7.0.72
+opencv-python==4.7.0.72
 ops==2.0.0
-pandas==1.2.4
+pandas==1.5.3
 Pillow==9.4.0
 pyautogui==0.9.53
 pynput==1.7.6
 PyYAML==6.0
 scikit_learn==1.2.1
-scipy==1.6.2
-seaborn==0.11.1
-tensorflow==2.5.0
-torch==1.8.1
-torchvision==0.11.1
+scipy==1.10.1
+seaborn==0.12.2
+tensorflow==2.11.0; platform_system != "Darwin" or platform.machine != "arm64"
+torch==1.13.1
+torchvision==0.14.1
+tqdm==4.64.1
 tweepy==4.12.1
-tqdm==4.48.2
-util==0.0.1

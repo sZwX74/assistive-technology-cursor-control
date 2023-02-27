@@ -221,7 +221,7 @@ for idx, path in enumerate(test_paths[buf:]):
 
     for i, (inputs, targets) in enumerate(test_loader):
         if not opt.no_cuda:
-            targets = targets.cuda(async=True)
+            targets = targets.cuda(non_blocking=True)
         with torch.no_grad():
             inputs = Variable(inputs)
             targets = Variable(targets)
