@@ -11,8 +11,8 @@ import mediapipe as mp
 import time
 from pynput.keyboard import Key, Controller
 
-sys.path.append('../two_handed_gestures/gesture_mapping')
-sys.path.append('./emnist_model/')
+sys.path.insert(0, '../two_handed_gestures/gesture_mapping')
+sys.path.insert(1, './emnist_model/')
 
 import alignment as alignment
 import util
@@ -132,6 +132,21 @@ def modifiers_hand_position(mp_hands, hand_landmarks):
 
     return hand_pos
 
+#new
+def most_frequent(gesture_list):
+    return max(set(gesture_list), key = gesture_list.count)
+
+#average recognized gestures in a sized list to pick most reliable category
+def avg_gesture(gesture_list, category, max_size):
+    if len(gesture_list) >= max_size:
+        gesture_list.pop(0)
+    gesture_list.append(category)
+    return most_frequent(gesture_list)
+
+#set up left and right list for gesture averaging
+right_gesture_list = []
+left_gesture_list = []
+
 # mediapipe setup
 mp_drawing, mp_drawing_styles = util.mediapipe_draw_setup()
 hands, mp_hands = mediapipe_hand_setup()
@@ -207,6 +222,14 @@ while cap.isOpened():
 
             category = util.recognize_gesture(templates, templates_category, hand_landmarks)
             util.mediapipe_draw(image, hand_landmarks, mp_hands, mp_drawing, mp_drawing_styles)
+
+            #gesture averaging
+            if handedness == 'Right':
+                category = avg_gesture(right_gesture_list, category, 6)
+
+            if handedness == "Left":
+                category = avg_gesture(left_gesture_list, category, 6)
+        
             cv2.putText(image, 'pose: ' + category, (10, image_height - 50),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
 
