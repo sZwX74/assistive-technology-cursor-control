@@ -105,6 +105,23 @@ def draw_modifiers_boxes(image, percent=0.2, color=((0, 255, 0)), thickness=3):
 
     return image, bksp_end_percentage
 
+#function to create confidence selection boxes. Hard numbers can be fixed.
+def confidence_selection(image, choice1, choice2, percent=0.2, color=((255, 0, 0)), thickness=3):
+    image_height, image_width, __ = image.shape
+    height_ratio = 0.5
+    left_choice_start_point = [int(480*0.25), int(640*0.25)]
+    left_choice_end_point = [int(480*0.25 + 100), int(640*0.25 + 200)]
+    right_choice_start_point = [int(480*0.85), int(640*0.25)]
+    right_choice_end_point = [int(480*0.85 + 100), int(640*0.25 + 200)]
+    image = cv2.rectangle(image, left_choice_start_point, left_choice_end_point, color, thickness)
+    image = cv2.rectangle(image, right_choice_start_point, right_choice_end_point, color, thickness)
+
+    cv2.putText(image, str(choice1), [int(480*0.25 + 50), int(640*0.25 + 100)],
+                cv2.FONT_HERSHEY_SIMPLEX, 1, color, thickness)
+    cv2.putText(image, str(choice2), [int(480*0.85 + 50), int(640*0.25 + 100)],
+                cv2.FONT_HERSHEY_SIMPLEX, 1, color, thickness)
+    return image
+    
 def modifiers_hand_position(mp_hands, hand_landmarks):
     hand_points_interest_x = \
         [hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x, 
@@ -189,6 +206,10 @@ char_map = { 0: '0',  1: '1',  2: '2',  3: '3',  4: '4',  5: '5',  6: '6',  7: '
             36: 'a', 37: 'b', 38: 'd', 39: 'e', 40: 'f', 41: 'g', 42: 'h', 43: 'n', 44: 'q',
             45: 'r', 46: 't'}
 
+#variables to keep track of confidence selection
+choice1 = None
+choice2 = None
+choice_made = None
 
 # loop start
 while cap.isOpened():
@@ -198,6 +219,7 @@ while cap.isOpened():
 
     # image shape: height * width = 720 * 1280, 9:16
     success, image = cap.read()
+    orig_img = image.copy()
     image = cv2.flip(image, 1)
     image_height, image_width, channels = image.shape
 
@@ -211,8 +233,13 @@ while cap.isOpened():
         # streaming: continue; vedio: break
         continue
 
+    #if we are in confidence selection mode, draw the confidence selection boxes
+    if choice1 != None and choice2 != None:
+        image = confidence_selection(image, choice1, choice2)
+
     # draw the bounding box for the backspace area of the screen
-    image, bksp_end_percentage = draw_modifiers_boxes(image)
+    else:
+        image, bksp_end_percentage = draw_modifiers_boxes(image)
 
     # get hand keypoints
     mp_success, num_hands, results = util.mediapipe_process(image, hands)
@@ -233,7 +260,8 @@ while cap.isOpened():
             cv2.putText(image, 'pose: ' + category, (10, image_height - 50),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
 
-            if handedness == 'Right':
+            #if we are NOT in confidence selection stage, then right hand is enabled.
+            if handedness == 'Right' and choice1 == None and choice2 == None:
                 # if right hand is pose 'one', append fingertip path
                 if category == 'one':
                     x_pixel = int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x\
@@ -252,11 +280,26 @@ while cap.isOpened():
                         tensor_input_image_reshaped = drawn_path_resized.T.reshape((1, 1, 28, 28))
                         tensor_input_image = torch.from_numpy(tensor_input_image_reshaped) / 255
                         character_confidences = model(tensor_input_image.to(DEVICE))
-                        
+
                         _, label = torch.max(character_confidences, axis=1)
-                        print(f'Recognized character: {char_map[int(label)]}')
-                        keyboard.press(char_map[int(label)])
-                        keyboard.release(char_map[int(label)])
+
+                        top2 = torch.topk(character_confidences, 2).indices.tolist()[0]
+                        probs = torch.topk(character_confidences, 2).values.tolist()[0]
+
+                        #If the top two probabilities are above a threshold, enter confidence selection stage
+                        if probs[0] >= 0.2 and probs[1] >= 0.2: #thresholds can be tuned.
+                            choice1 = char_map[int(top2[0])]
+                            choice2 = char_map[int(top2[1])]
+                            print("CONFIDENCE SELECTION: " + "\n")
+                            print(f'Top Choice 1: {char_map[int(top2[0])]} with probability {probs[0]}')
+                            print(f'Top Choice 2: {char_map[int(top2[1])]} with probability {probs[1]}')
+
+                        else:
+                            #otherwise, just select top character normally
+                            print(f'Recognized character: {char_map[int(label)]}')
+
+                            keyboard.press(char_map[int(label)])
+                            keyboard.release(char_map[int(label)])
 
                     # reset path
                     fingertip_path_right = []
@@ -272,19 +315,37 @@ while cap.isOpened():
             if handedness == "Left":
                 # get hand position (as a percentage)
                 hand_pos_percent = modifiers_hand_position(mp_hands, hand_landmarks)
-                
-                # if in backspace box, backspace once
-                if hand_pos_percent[0] < bksp_end_percentage[0] and hand_pos_percent[1]\
-                                                                    < bksp_end_percentage[1]:
-                    if not backspace_available:
-                        keyboard.press(Key.backspace)
-                        keyboard.release(Key.backspace)
-                        backspace_available = True
-                
-                # once hand leaves the box, make backspace possible again
-                else:
-                    backspace_available = False
 
+                #if we are currently in the confidence selection stage, then check the user's hand position
+                if choice1 != None and choice2 != None:
+                    if hand_pos_percent[0] * 480 <= int(480*0.25 + 50) and hand_pos_percent[0] * 480 >= int(480*0.25 - 50) and hand_pos_percent[1] * 640 <= int(640*0.25 + 200) and hand_pos_percent[1] * 640 >= int(640*0.25):
+                        choice_made = choice1
+                    if hand_pos_percent[0] * 480 <= int(480*0.85 + 50) and hand_pos_percent[0] * 480 >= int(480*0.85 - 50) and hand_pos_percent[1] * 640 <= int(640*0.25 + 200) and hand_pos_percent[1] * 640 >= int(640*0.25):
+                        choice_made = choice2
+                    
+                    #If they have made a choice, then press the key and exit confidence selection
+                    if choice_made != None:
+                        print(f'Chosen character: {choice_made}')
+                        keyboard.press(choice_made)
+                        keyboard.release(choice_made)
+                        choice1 = None
+                        choice2 = None
+                        choice_made = None
+
+                else:
+                    # if in backspace box, backspace once
+                    if hand_pos_percent[0] < bksp_end_percentage[0] and hand_pos_percent[1]\
+                                                                    < bksp_end_percentage[1]:
+                        if not backspace_available:
+                            keyboard.press(Key.backspace)
+                            keyboard.release(Key.backspace)
+                            backspace_available = True
+                
+                    # once hand leaves the box, make backspace possible again
+                    else:
+                        backspace_available = False
+
+                
                 # backspace once using gesture
                 if category == "one_left" and prev_left_gesture != "one_left":
                     keyboard.press(Key.backspace)
