@@ -137,7 +137,7 @@ def most_frequent(gesture_list):
     return max(set(gesture_list), key = gesture_list.count)
 
 #average recognized gestures in a sized list to pick most reliable category
-def avg_gesture(gesture_list, category, max_size):
+def avg_gesture(gesture_list, category, max_size=3):
     if len(gesture_list) >= max_size:
         gesture_list.pop(0)
     gesture_list.append(category)
@@ -225,10 +225,10 @@ while cap.isOpened():
 
             #gesture averaging
             if handedness == 'Right':
-                category = avg_gesture(right_gesture_list, category, 6)
+                category = avg_gesture(right_gesture_list, category)
 
             if handedness == "Left":
-                category = avg_gesture(left_gesture_list, category, 6)
+                category = avg_gesture(left_gesture_list, category)
         
             cv2.putText(image, 'pose: ' + category, (10, image_height - 50),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
