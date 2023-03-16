@@ -124,6 +124,10 @@ fingertip_path_right = []
 prev_left_gesture = None
 prev_right_gesture = None
 backspace_available = False
+right_gesture = None
+left_gesture = None
+left_rising_edge_gesture = False
+right_rising_edge_gesture = False
 
 drawn_image = None
 
@@ -132,7 +136,7 @@ model = pytorch_model_class.CNN_SRM().to(DEVICE)
 model.load_model(path = './emnist_model/saved_models')
 
 # mapping of characters to digits
-# mapping based on https://arxiv.org/pdf/1702.05373.pdf, balanced dataset
+# mapping based on https://arxiv.org/pdf/1702.05373.pdf, balanced dataset+++
 char_map = { 0: '0',  1: '1',  2: '2',  3: '3',  4: '4',  5: '5',  6: '6',  7: '7',  8: '8', 9: '9',
             10: 'A', 11: 'B', 12: 'C', 13: 'D', 14: 'E', 15: 'F', 16: 'G', 17: 'H', 18: 'I',
             19: 'J', 20: 'K', 21: 'L', 22: 'M', 23: 'N', 24: 'O', 25: 'P', 26: 'Q', 27: 'R',
@@ -156,13 +160,13 @@ image_height, image_width = image.shape[:2]
 joystick_center = np.array([int(0.75 * image_width), int(0.5 * image_height)])
 joystick_radius = 40
 
-templates, templates_category = load_temp()
-
 pyautogui.FAILSAFE = False
 
 win_name = "Mouse/Keyboard Controller"
-cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
+# cv2.namedWindow(win_name, cv2.WND_PROP_ASPECT_RATIO)
+cv2.imshow(win_name, image)
 cv2.setWindowProperty(win_name, cv2.WND_PROP_TOPMOST, 1)
+
 while cap.isOpened():
     # get tick count for measuring latency
     # https://docs.opencv.org/4.x/dc/d71/tutorial_py_optimization.html
@@ -171,72 +175,68 @@ while cap.isOpened():
     success, image = cap.read()
     image = cv2.flip(image, 1)
 
-    # Initialize the Drawn Image into a new image and display window
-    if drawn_image is None:
-        drawn_image = np.zeros(image.shape[0:2], dtype=np.uint8)
-        # cv2.imshow('Drawn Image', drawn_image)
-
-    # draw the bounding box for the backspace area of the screen
-    image, bksp_end_percentage = keyboard_util.draw_modifiers_boxes(image)
-
     if not success:
-      print("Ignoring empty camera frame.")
-      # If loading a video, use 'break' instead of 'continue'.
-      continue
+        print("Ignoring empty camera frame.")
+        # If loading a video, use 'break' instead of 'continue'.
+        continue
+
+    # always show bounding boxes if in keyboard mode
+    if is_keyboard_mode:
+        # draw the bounding box for the backspace area of the screen
+        image, bksp_end_percentage = keyboard_util.draw_modifiers_boxes(image)
 
     # get hand keypoints
     mp_success, num_hands, results = util.mediapipe_process(image, hands)
     if mp_success:
-        right_hand = None
-        left_hand = None
         for i in range(num_hands):
-        # for i, hand_landmarks in enumerate(results.multi_hand_landmarks):
             score, handedness, hand_landmarks = util.get_mediapipe_result(results, i)
 
-            category = util.recognize_gesture(templates, templates_category, hand_landmarks)
+            hand_gesture = util.recognize_gesture(templates, templates_category, hand_landmarks)
             util.mediapipe_draw(image, hand_landmarks, mp_hands, mp_drawing, mp_drawing_styles)
-
-            #gesture averaging
-            if handedness == 'Right':
-                category = keyboard_util.avg_gesture(right_gesture_list, category)
-
-            if handedness == "Left":
-                category = keyboard_util.avg_gesture(left_gesture_list, category)
 
             landmark_data = []
             for point in hand_landmarks.landmark:
                 landmark_data.append([point.x, point.y])
             
-            hand_gesture = category # TODO: rename hand_gesture to category, delete this line
             if handedness == 'Right':
-                right_hand = hand_gesture
+                right_gesture = keyboard_util.avg_gesture(right_gesture_list, hand_gesture)
                 right_landmarks = hand_landmarks
-                cv2.putText(image, 'right hand gesture: ' + str(right_hand),
+                cv2.putText(image, 'right hand gesture: ' + str(right_gesture),
                 (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
             else:
-                left_hand = hand_gesture
+                left_gesture = keyboard_util.avg_gesture(left_gesture_list, hand_gesture)
                 left_landmarks = hand_landmarks
-                cv2.putText(image, 'left hand gesture: ' + str(left_hand),
+                cv2.putText(image, 'left hand gesture: ' + str(left_gesture),
                 (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
+
+            # update rising edge for updating previous gestures
+            if prev_right_gesture != right_gesture:
+                right_rising_edge_gesture = True
+            if prev_left_gesture != left_gesture:
+                left_rising_edge_gesture = True
+
+        if left_gesture == "fist_left" and right_gesture == "fist" \
+           and (prev_left_gesture != "fist_left" or prev_right_gesture != "fist"):
+            is_keyboard_mode = not is_keyboard_mode
 
 # ------------------ BEGIN MOUSE MODE ------------------
         if not is_keyboard_mode:
-            if left_hand in mode_mapping:
-                mode = mode_mapping[left_hand]
+            if left_gesture in mode_mapping:
+                mode = mode_mapping[left_gesture]
                 cv2.putText(image, 'mode: ' + mode, (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
                 if mode == 'scroll':
-                    if right_hand == "one":
+                    if right_gesture == "one":
                         # pyautogui.press('up')
                         pyautogui.scroll(5)
-                    elif right_hand == 'arrow':
+                    elif right_gesture == 'arrow':
                         pyautogui.press('down')
                         # pyautogui.press('down')
                         pyautogui.scroll(-5)
-                    elif right_hand == "two":
+                    elif right_gesture == "two":
                         pyautogui.hscroll(10)
-                    elif right_hand == "three":
+                    elif right_gesture == "three":
                         pyautogui.hscroll(-10) 
-                elif mode == 'cursor':
+                elif mode == 'cursor' and right_landmarks is not None:
                     keypoints = hand_keypoints(right_landmarks)
                     center, radius = palm_center(keypoints)
                     center_queue.appendleft(center)
@@ -256,9 +256,9 @@ while cap.isOpened():
                     # cv2.line(image, (1 * width, 0.25 * image_height), (1 * width, 0.75 * image_height), (0, 255, 0), 3)
                     # cv2.line(image, (0.5 * width, 0.25 * image_height), (1 * width, 0.25 * image_height), (0, 255, 0), 3)
                     # cv2.line(image, (0.5 * width, 0.75 * image_height), (1 * width, 0.75 * image_height), (0, 255, 0), 3)
-                    cv2. rectangle(image, (int(0.50 * image_width), int(0.75 * image_height)), (int(0.80 * image_width), int(0.25 * image_height)), (0, 255, 0), 3)
+                    cv2.rectangle(image, (int(0.50 * image_width), int(0.75 * image_height)), (int(0.80 * image_width), int(0.25 * image_height)), (0, 255, 0), 3)
 
-                    if right_hand == 'arrow':
+                    if right_gesture == 'arrow':
                         if not leftclick_start:
                             leftclick_start = time.time()
                         elif time.time() - leftclick_start <= 1:
@@ -267,9 +267,9 @@ while cap.isOpened():
                         else:
                             leftclick_start = None
                             pyautogui.click()
-                    elif right_hand == "two":
+                    elif right_gesture == "two":
                         pyautogui.doubleClick()
-                    elif right_hand == "one":
+                    elif right_gesture == "one":
                         pyautogui.rightClick()
                 elif mode == 'volume':
                     if time_start is None:
@@ -277,11 +277,11 @@ while cap.isOpened():
                     time_stamp = time.time()
                     if (time_stamp - time_start > 1):
                         time_start = time_stamp
-                        if right_hand == "one":
+                        if right_gesture == "one":
                             keyboard.tap(Key.media_volume_up)
-                        elif right_hand == 'arrow':
+                        elif right_gesture == 'arrow':
                             keyboard.tap(Key.media_volume_down)
-                        elif right_hand == "two":
+                        elif right_gesture == "two":
                             keyboard.tap(Key.media_volume_mute)
                 elif mode == 'window':
                     if time_start is None:
@@ -289,11 +289,11 @@ while cap.isOpened():
                     time_stamp = time.time()
                     if (time_stamp - time_start > 1):
                         time_start = time_stamp
-                        if right_hand == "one": #switch to previous app
+                        if right_gesture == "one": #switch to previous app
                             pyautogui.hotkey('command', 'tab')
-                        elif right_hand == "two": #browse windows
+                        elif right_gesture == "two": #browse windows
                             pyautogui.hotkey('ctrl', 'up')
-                        elif right_hand == "three": #minimize active window
+                        elif right_gesture == "three": #minimize active window
                             pyautogui.hotkey('command', 'm')
                 elif mode == 'safari':
                     if time_start is None:
@@ -301,28 +301,28 @@ while cap.isOpened():
                     time_stamp = time.time()
                     if (time_stamp - time_start > 1):
                         time_start = time_stamp
-                        if right_hand == "one": # new tab
+                        if right_gesture == "one": # new tab
                             keyboard.press(Key.cmd)
                             keyboard.press('t')
                             keyboard.release('t')
                             keyboard.release(Key.cmd)
                             #time.sleep(0.5)
                         
-                        if right_hand == "two": # address bar
+                        if right_gesture == "two": # address bar
                             keyboard.press(Key.cmd)
                             keyboard.press('l')
                             keyboard.release('l')
                             keyboard.release(Key.cmd)
                             #time.sleep(0.5)
 
-                        if right_hand == "four": # decrease text size
+                        if right_gesture == "four": # decrease text size
                             keyboard.press(Key.cmd)
                             keyboard.press('-')
                             keyboard.release('-')
                             keyboard.release(Key.cmd)
                             #time.sleep(0.5)
                         
-                        if right_hand == "five": # increase text size
+                        if right_gesture == "five": # increase text size
                             keyboard.press(Key.cmd)
                             keyboard.press('+')
                             keyboard.release('-')
@@ -330,7 +330,7 @@ while cap.isOpened():
                             #time.sleep(0.5)
                             
                             
-                        if right_hand == 'arrow': # switch tab
+                        if right_gesture == 'arrow': # switch tab
                             keyboard.press(Key.ctrl)
                             keyboard.press(Key.tab)
                             keyboard.release(Key.tab)
@@ -338,7 +338,7 @@ while cap.isOpened():
                             #time.sleep(0.5)
 
 
-                        if right_hand == "three": #close tab
+                        if right_gesture == "three": #close tab
                             keyboard.press(Key.cmd)
                             keyboard.press('w')
                             keyboard.release('w')
@@ -348,69 +348,73 @@ while cap.isOpened():
 # ------------------ END MOUSE MODE ------------------
 # ------------------ BEGIN KEYBOARD MODE ------------------
         else:
-            if handedness == 'Right':
-                # if right hand is pose 'one', append fingertip path
-                if category == 'one':
-                    x_pixel = int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x\
-                                    * image_width)
-                    y_pixel = int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y\
-                                    * image_height)
-                    fingertip_path_right.append((x_pixel, y_pixel))
+            # Initialize the Drawn Image into a new image and display window
+            if drawn_image is None:
+                drawn_image = np.zeros(image.shape[0:2], dtype=np.uint8)
+                # cv2.imshow('Drawn Image', drawn_image)
 
-                # if right hand is a fist, show path on rising edge and reset path
-                if category == 'fist' and prev_right_gesture != 'fist':
+            # if right hand is pose 'one', append fingertip path
+            if right_gesture == 'one':
+                x_pixel = int(right_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x\
+                                * image_width)
+                y_pixel = int(right_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y\
+                                * image_height)
+                fingertip_path_right.append((x_pixel, y_pixel))
 
-                    # on rising edge, draw path in separate window
-                    drawn_path_resized = keyboard_util.crop_and_draw_path(drawn_image, fingertip_path_right)
+            # if right hand is a fist, show path on rising edge and reset path
+            if right_gesture == 'fist' and prev_right_gesture != 'fist':
+                # on rising edge, draw path in separate window
+                drawn_path_resized = keyboard_util.crop_and_draw_path(drawn_image, fingertip_path_right)
 
-                    if drawn_path_resized is not None:
-                        tensor_input_image_reshaped = drawn_path_resized.T.reshape((1, 1, 28, 28))
-                        tensor_input_image = torch.from_numpy(tensor_input_image_reshaped) / 255
-                        character_confidences = model(tensor_input_image.to(DEVICE))
-                        
-                        _, label = torch.max(character_confidences, axis=1)
-                        print(f'Recognized character: {char_map[int(label)]}')
-                        keyboard.press(char_map[int(label)])
-                        keyboard.release(char_map[int(label)])
+                if drawn_path_resized is not None:
+                    tensor_input_image_reshaped = drawn_path_resized.T.reshape((1, 1, 28, 28))
+                    tensor_input_image = torch.from_numpy(tensor_input_image_reshaped) / 255
+                    character_confidences = model(tensor_input_image.to(DEVICE))
+                    
+                    _, label = torch.max(character_confidences, axis=1)
+                    print(f'Recognized character: {char_map[int(label)]}')
+                    keyboard.press(char_map[int(label)])
+                    keyboard.release(char_map[int(label)])
 
-                    # reset path
-                    fingertip_path_right = []
+                # reset path
+                fingertip_path_right = []
 
-                # if right hand is a four, discard drawing
-                if category == "four" and prev_right_gesture != "four":
-                    fingertip_path_right = []
+            # if right hand is a four, discard drawing
+            if right_gesture == "four" and prev_right_gesture != "four":
+                fingertip_path_right = []
 
-                # update previous right gesture
-                prev_right_gesture = category
-
-
-            if handedness == "Left":
-                # get hand position (as a percentage)
-                hand_pos_percent = keyboard_util.modifiers_hand_position(mp_hands, hand_landmarks)
-                
-                # if in backspace box, backspace once
-                if hand_pos_percent[0] < bksp_end_percentage[0] and hand_pos_percent[1]\
-                                                                    < bksp_end_percentage[1]:
-                    if not backspace_available:
-                        keyboard.press(Key.backspace)
-                        keyboard.release(Key.backspace)
-                        backspace_available = True
-                
-                # once hand leaves the box, make backspace possible again
-                else:
-                    backspace_available = False
-
-                # backspace once using gesture
-                if category == "one_left" and prev_left_gesture != "one_left":
+            # get hand position (as a percentage)
+            if left_landmarks is not None:
+                hand_pos_percent = keyboard_util.modifiers_hand_position(mp_hands, left_landmarks)
+            
+            # if in backspace box, backspace once
+            if hand_pos_percent[0] < bksp_end_percentage[0] and hand_pos_percent[1]\
+                                                                < bksp_end_percentage[1]:
+                if not backspace_available:
                     keyboard.press(Key.backspace)
                     keyboard.release(Key.backspace)
+                    backspace_available = True
+            
+            # once hand leaves the box, make backspace possible again
+            else:
+                backspace_available = False
 
-                # update previous right gesture
-                prev_left_gesture = category
+            # backspace once using gesture
+            if left_gesture == "one_left" and prev_left_gesture != "one_left":
+                keyboard.press(Key.backspace)
+                keyboard.release(Key.backspace)
 
         # draw the path of the fingertip
         if len(fingertip_path_right) > 0:
-            image = keyboard_util.draw_path(image, fingertip_path_right)
+            image = keyboard_util.draw_path(image, fingertip_path_right)        
+
+        if right_rising_edge_gesture:
+            prev_right_gesture = right_gesture
+            right_rising_edge_gesture = False
+
+        if left_rising_edge_gesture:
+            prev_left_gesture = left_gesture
+            left_rising_edge_gesture = False
 
     else:
         fingertip_path_right = []
@@ -418,9 +422,9 @@ while cap.isOpened():
 
     # Flip the image horizontally for a selfie-view display.
     cv2.imshow(win_name, image)
-    cv2.resizeWindow(win_name, 320, 180)
+    # cv2.resizeWindow(win_name, 320, 180)
 
-    # calculate latency
+    # # calculate latency
     # tick_end = cv2.getTickCount()
     # latency = (tick_end - tick_start) / cv2.getTickFrequency()
     # print('Latency: {} seconds'.format(latency))

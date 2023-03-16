@@ -294,7 +294,6 @@ while cap.isOpened():
                 prev_left_gesture = category
 
         # draw the path of the fingertip
-        print(len(fingertip_path_right))
         if len(fingertip_path_right) > 0:
             image = draw_path(image, fingertip_path_right)
         
