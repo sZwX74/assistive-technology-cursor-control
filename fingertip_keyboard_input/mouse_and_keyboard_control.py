@@ -12,7 +12,14 @@ import re
 
 import alignment
 import util
+import sys
+sys.path.insert(0, './emnist_model/')
 
+import torch
+import pytorch_model_class
+from pytorch_model_class import DEVICE
+
+import keyboard_util
 
 def load_temp():
     confident_col = np.ones((21,1))
@@ -121,6 +128,37 @@ templates, templates_category = util.load_temp()
 # video streaming setup
 cap = cv2.VideoCapture(0)
 
+# --- beging keyboard input setup ---
+#set up left and right list for gesture averaging
+right_gesture_list = []
+left_gesture_list = []
+
+# array to hold drawn points
+fingertip_path_right = []
+
+# store previous gesture for rising edge of gesture
+prev_left_gesture = None
+prev_right_gesture = None
+backspace_available = False
+
+drawn_image = None
+
+# load ML classification model
+model = pytorch_model_class.CNN_SRM().to(DEVICE)
+model.load_model(path = './emnist_model/saved_models')
+
+# mapping of characters to digits
+# mapping based on https://arxiv.org/pdf/1702.05373.pdf, balanced dataset
+char_map = { 0: '0',  1: '1',  2: '2',  3: '3',  4: '4',  5: '5',  6: '6',  7: '7',  8: '8', 9: '9',
+            10: 'A', 11: 'B', 12: 'C', 13: 'D', 14: 'E', 15: 'F', 16: 'G', 17: 'H', 18: 'I',
+            19: 'J', 20: 'K', 21: 'L', 22: 'M', 23: 'N', 24: 'O', 25: 'P', 26: 'Q', 27: 'R',
+            28: 'S', 29: 'T', 30: 'U', 31: 'V', 32: 'W', 33: 'X', 34: 'Y', 35: 'Z', 
+            36: 'a', 37: 'b', 38: 'd', 39: 'e', 40: 'f', 41: 'g', 42: 'h', 43: 'n', 44: 'q',
+            45: 'r', 46: 't'}
+
+
+# --- end keyboard input setup ---
+
 
 # mode_mapping = {1: 'cursor', 2: 'scroll', 3: 'volume', 4: 'window', 5: 'safari'}
 mode_mapping = {"one_left": 'cursor', "two_left": 'scroll', "three_left": 'volume', "four_left": 'window', "five_left": 'safari'}
@@ -144,8 +182,21 @@ win_name = "hands"
 cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
 cv2.setWindowProperty(win_name, cv2.WND_PROP_TOPMOST, 1)
 while cap.isOpened():
+    # get tick count for measuring latency
+    # https://docs.opencv.org/4.x/dc/d71/tutorial_py_optimization.html
+    tick_start = cv2.getTickCount()
+
     success, image = cap.read()
     image = cv2.flip(image, 1)
+
+    # Initialize the Drawn Image into a new image and display window
+    if drawn_image is None:
+        drawn_image = np.zeros(image.shape[0:2], dtype=np.uint8)
+        # cv2.imshow('Drawn Image', drawn_image)
+
+    # draw the bounding box for the backspace area of the screen
+    image, bksp_end_percentage = keyboard_util.draw_modifiers_boxes(image)
+
     if not success:
       print("Ignoring empty camera frame.")
       # If loading a video, use 'break' instead of 'continue'.

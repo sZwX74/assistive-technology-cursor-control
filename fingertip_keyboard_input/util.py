@@ -6,9 +6,13 @@ import os
 import re
 
 
-def mediapipe_hand_setup(min_detection_confidence=0.7):
+def mediapipe_hand_setup(model_complexity=0,
+                         min_detection_confidence=0.9,
+                         min_tracking_confidence=0.95):
     mp_hands = mp.solutions.hands
-    hands = mp_hands.Hands(min_detection_confidence=min_detection_confidence)
+    hands = mp_hands.Hands(model_complexity=model_complexity,
+                           min_detection_confidence=min_detection_confidence,
+                           min_tracking_confidence=min_tracking_confidence)
     return hands, mp_hands
 
 def mediapipe_draw_setup():
