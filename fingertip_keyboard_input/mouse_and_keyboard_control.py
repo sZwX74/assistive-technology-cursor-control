@@ -389,17 +389,17 @@ while cap.isOpened():
             if left_landmarks is not None:
                 hand_pos_percent = keyboard_util.modifiers_hand_position(mp_hands, left_landmarks)
             
-            # if in backspace box, backspace once
-            if hand_pos_percent[0] < bksp_end_percentage[0] and hand_pos_percent[1]\
-                                                                < bksp_end_percentage[1]:
-                if not backspace_available:
-                    keyboard.press(Key.backspace)
-                    keyboard.release(Key.backspace)
-                    backspace_available = True
-            
-            # once hand leaves the box, make backspace possible again
-            else:
-                backspace_available = False
+                # if in backspace box, backspace once
+                if hand_pos_percent[0] < bksp_end_percentage[0] and hand_pos_percent[1]\
+                                                                    < bksp_end_percentage[1]:
+                    if not backspace_available:
+                        keyboard.press(Key.backspace)
+                        keyboard.release(Key.backspace)
+                        backspace_available = True
+                
+                # once hand leaves the box, make backspace possible again
+                else:
+                    backspace_available = False
 
             # backspace once using gesture
             if left_gesture == "one_left" and prev_left_gesture != "one_left":
