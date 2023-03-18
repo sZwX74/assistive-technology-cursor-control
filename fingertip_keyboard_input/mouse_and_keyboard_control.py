@@ -126,6 +126,8 @@ prev_right_gesture = None
 backspace_available = False
 right_gesture = None
 left_gesture = None
+right_landmarks = None
+left_landmarks = None
 left_rising_edge_gesture = False
 right_rising_edge_gesture = False
 
