@@ -108,19 +108,30 @@ def draw_modifiers_boxes(image, percent=0.2, color=((0, 255, 0)), thickness=3):
 #function to create confidence selection boxes. Hard numbers can be fixed.
 def confidence_selection(image, choice1, choice2, percent=0.2, color=((255, 0, 0)), thickness=3):
     image_height, image_width, __ = image.shape
-    height_ratio = 0.5
-    left_choice_start_point = [int(480*0.25), int(640*0.25)]
-    left_choice_end_point = [int(480*0.25 + 100), int(640*0.25 + 200)]
-    right_choice_start_point = [int(480*0.85), int(640*0.25)]
-    right_choice_end_point = [int(480*0.85 + 100), int(640*0.25 + 200)]
+    height_ratio_start = 0.25
+    height_ratio_end = 0.75
+    width_ratio_left_start = 0.25
+    width_ratio_left_end = 0.5
+    width_ratio_right_start = 0.75
+    width_ratio_right_end = 1.0
+    left_choice_start_point = [int(image_width * width_ratio_left_start), int(image_height * height_ratio_start)]
+    left_choice_end_point = [int(image_width*width_ratio_left_end), int(image_height * height_ratio_end)]
+    right_choice_start_point = [int(image_width * width_ratio_right_start), int(image_height * height_ratio_start)]
+    right_choice_end_point = [int(image_width * width_ratio_right_end), int(image_height * height_ratio_end)]
     image = cv2.rectangle(image, left_choice_start_point, left_choice_end_point, color, thickness)
     image = cv2.rectangle(image, right_choice_start_point, right_choice_end_point, color, thickness)
 
-    cv2.putText(image, str(choice1), [int(480*0.25 + 50), int(640*0.25 + 100)],
+    cv2.putText(image, str(choice1), [int(image_width * (width_ratio_left_start + width_ratio_left_end)/2), int(image_height * (height_ratio_start + height_ratio_end)/2)],
                 cv2.FONT_HERSHEY_SIMPLEX, 1, color, thickness)
-    cv2.putText(image, str(choice2), [int(480*0.85 + 50), int(640*0.25 + 100)],
+    cv2.putText(image, str(choice2), [int(image_width * (width_ratio_right_start + width_ratio_right_end)/2), int(image_height * (height_ratio_start + height_ratio_end)/2)],
                 cv2.FONT_HERSHEY_SIMPLEX, 1, color, thickness)
-    return image
+    
+    choice1_start_percentage = [width_ratio_left_start, height_ratio_start]
+    choice1_end_percentage = [width_ratio_left_end, height_ratio_end]
+    choice2_start_percentage = [width_ratio_right_start, height_ratio_start]
+    choice2_end_percentage = [width_ratio_right_end, height_ratio_end]
+
+    return image, choice1_start_percentage, choice1_end_percentage, choice2_start_percentage, choice2_end_percentage
     
 def modifiers_hand_position(mp_hands, hand_landmarks):
     hand_points_interest_x = \
@@ -235,7 +246,7 @@ while cap.isOpened():
 
     #if we are in confidence selection mode, draw the confidence selection boxes
     if choice1 != None and choice2 != None:
-        image = confidence_selection(image, choice1, choice2)
+        image, choice1_start_percentage, choice1_end_percentage, choice2_start_percentage, choice2_end_percentage = confidence_selection(image, choice1, choice2)
 
     # draw the bounding box for the backspace area of the screen
     else:
@@ -318,9 +329,9 @@ while cap.isOpened():
 
                 #if we are currently in the confidence selection stage, then check the user's hand position
                 if choice1 != None and choice2 != None:
-                    if hand_pos_percent[0] * 480 <= int(480*0.25 + 50) and hand_pos_percent[0] * 480 >= int(480*0.25 - 50) and hand_pos_percent[1] * 640 <= int(640*0.25 + 200) and hand_pos_percent[1] * 640 >= int(640*0.25):
+                    if hand_pos_percent[0] > choice1_start_percentage[0] and hand_pos_percent[0] < choice1_end_percentage[0] and hand_pos_percent[1] > choice1_start_percentage[1] and hand_pos_percent[1] < choice1_end_percentage[1]:
                         choice_made = choice1
-                    if hand_pos_percent[0] * 480 <= int(480*0.85 + 50) and hand_pos_percent[0] * 480 >= int(480*0.85 - 50) and hand_pos_percent[1] * 640 <= int(640*0.25 + 200) and hand_pos_percent[1] * 640 >= int(640*0.25):
+                    if hand_pos_percent[0] > choice2_start_percentage[0] and hand_pos_percent[0] < choice2_end_percentage[0] and hand_pos_percent[1] > choice2_start_percentage[1] and hand_pos_percent[1] < choice2_end_percentage[1]:
                         choice_made = choice2
                     
                     #If they have made a choice, then press the key and exit confidence selection
