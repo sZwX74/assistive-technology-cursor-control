@@ -4,6 +4,7 @@ import cv2
 import pyautogui
 from pynput import keyboard
 from pynput.keyboard import Controller, Key
+import one_euro_filter
 
 import collections
 import time
@@ -50,6 +51,7 @@ def hand_keypoints(hand_landmarks):
         points.append([landmark.x, landmark.y, landmark.z])
     return np.array(points)
 
+# https://en.wikipedia.org/wiki/Shoelace_formula to determine area
 def shoelace_area(points):
     x0, y0 = np.hsplit(points, 2)
     points1 = np.roll(points, -1, axis=0)
@@ -59,8 +61,8 @@ def shoelace_area(points):
     return area, x0 + x1, y0 + y1, combination
 
 def palm_center(keypoints):
-    indices = [0, 1, 5, 9, 13, 17]
-    points = keypoints[indices, :2]
+    indices = [0, 1, 5, 9, 13, 17]   # indices of mediapipe landmarks
+    points = keypoints[indices, :2]  # x and y coordinates of landmarks
     area, x, y, combination = shoelace_area(points)
     center_x = np.sum(x * combination) / (6 * area)
     center_y = np.sum(y * combination) / (6 * area)
@@ -77,12 +79,12 @@ def absolute(center):
     print(x, y)
     pyautogui.moveTo(x, y, _pause=False)
 
-def absolute_scale(center):
-    start_point = [0.50 * image_width, 0.25 * image_height]
-    scale = screen_width // (0.25 * image_width)
+def absolute_scale(hand_center):
+    top_left = [0.50 * image_width, 0.50 * image_height]
+    scale = screen_width // (0.33 * image_width)
     #scale_y = screen_height // (0.5 * height)
-    out_x = scale * (center[0] - start_point[0])
-    out_y = scale * (center[1] - start_point[1])
+    out_x = scale * (hand_center[0] - top_left[0])
+    out_y = scale * (hand_center[1] - top_left[1])
     pyautogui.moveTo(out_x, out_y, _pause=False)
 
 
@@ -97,6 +99,10 @@ def joystick(center, frame):
         print('mouse vector', mouse_vector)
     cv2.line(frame, tuple(joystick_center), tuple(np.int32(center)), (255, 0, 0), 2)
     
+def get_filtered_center(center, t):
+    x_center = x_filter(t, center[0])
+    y_center = y_filter(t, center[1])
+    return [x_center, y_center]
 
 
 # mediapipe setup
@@ -108,6 +114,11 @@ templates, templates_category = util.load_temp()
 
 # video streaming setup
 cap = cv2.VideoCapture(0)
+
+# mouse filtering setup
+x_filter = one_euro_filter.OneEuroFilter(0, 0)
+y_filter = one_euro_filter.OneEuroFilter(0, 0)
+frame = 0
 
 # -------- begin keyboard input setup --------
 keyboard = Controller()
@@ -239,13 +250,15 @@ while cap.isOpened():
                     elif right_gesture == "three":
                         pyautogui.hscroll(-10) 
                 elif mode == 'cursor' and right_landmarks is not None:
+                    frame += 1 # used for filter
                     keypoints = hand_keypoints(right_landmarks)
                     center, radius = palm_center(keypoints)
-                    center_queue.appendleft(center)
-                    center = np.mean(center_queue, axis=0)
+                    center = get_filtered_center(center, frame)
+                    # center_queue.appendleft(center)
+                    # center = np.mean(center_queue, axis=0)
                     #absolute(center)
                     absolute_scale(center)
-                    scale = screen_width // (0.5 * image_width)
+                    # scale = screen_width // (0.5 * image_width)
                     #joystick(center, image)
 
                     # center and palm tracking
@@ -258,7 +271,7 @@ while cap.isOpened():
                     # cv2.line(image, (1 * width, 0.25 * image_height), (1 * width, 0.75 * image_height), (0, 255, 0), 3)
                     # cv2.line(image, (0.5 * width, 0.25 * image_height), (1 * width, 0.25 * image_height), (0, 255, 0), 3)
                     # cv2.line(image, (0.5 * width, 0.75 * image_height), (1 * width, 0.75 * image_height), (0, 255, 0), 3)
-                    cv2.rectangle(image, (int(0.50 * image_width), int(0.75 * image_height)), (int(0.80 * image_width), int(0.25 * image_height)), (0, 255, 0), 3)
+                    cv2.rectangle(image, (int(0.50 * image_width), int(0.50 * image_height)), (int(0.85 * image_width), int(0.80 * image_height)), (0, 255, 0), 3)
 
                     if right_gesture == 'arrow':
                         if not leftclick_start:
@@ -396,7 +409,7 @@ while cap.isOpened():
                         keyboard.press(Key.backspace)
                         keyboard.release(Key.backspace)
                         backspace_available = True
-                
+            
                 # once hand leaves the box, make backspace possible again
                 else:
                     backspace_available = False
