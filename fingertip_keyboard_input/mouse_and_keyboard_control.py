@@ -135,6 +135,7 @@ fingertip_path_right = []
 prev_left_gesture = None
 prev_right_gesture = None
 backspace_available = False
+space_available = False
 right_gesture = None
 left_gesture = None
 right_landmarks = None
@@ -215,7 +216,7 @@ while cap.isOpened():
     # always show bounding boxes if in keyboard mode
     if is_keyboard_mode:
         # draw the bounding box for the backspace area of the screen
-        image, bksp_end_percentage = keyboard_util.draw_modifiers_boxes(image)
+        image, bksp_space_end_percentage = keyboard_util.draw_modifiers_boxes(image)
 
     # get hand keypoints
     mp_success, num_hands, results = util.mediapipe_process(image, hands)
@@ -427,8 +428,8 @@ while cap.isOpened():
                 hand_pos_percent = keyboard_util.modifiers_hand_position(mp_hands, left_landmarks)
             
                 # if in backspace box, backspace once
-                if hand_pos_percent[0] < bksp_end_percentage[0] and hand_pos_percent[1]\
-                                                                    < bksp_end_percentage[1]:
+                if hand_pos_percent[0] < bksp_space_end_percentage[0] and hand_pos_percent[1]\
+                                                                    < bksp_space_end_percentage[1]:
                     if not backspace_available:
                         keyboard.press(Key.backspace)
                         keyboard.release(Key.backspace)
@@ -437,6 +438,18 @@ while cap.isOpened():
                 # once hand leaves the box, make backspace possible again
                 else:
                     backspace_available = False
+                
+                # if in space box, space once
+                if hand_pos_percent[0] < bksp_space_end_percentage[0] and hand_pos_percent[1]\
+                                                                    > bksp_space_end_percentage[1]:
+                    if not space_available:
+                        keyboard.press(Key.space)
+                        keyboard.release(Key.space)
+                        space_available = True
+            
+                # once hand leaves the box, make space possible again
+                else:
+                    space_available = False
 
             # backspace once using gesture
             if left_gesture == "one_left" and prev_left_gesture != "one_left":
