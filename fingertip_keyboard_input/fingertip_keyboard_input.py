@@ -217,10 +217,6 @@ char_map = {
 
 # we use char recognition by default
 input_mode = 1 # 1 for char, -1 for digit
-model_map_choice = {
-    -1: [digit_model, digit_map],
-    1: [char_model, char_map]
-}
 
 # keyboard setup
 keyboard = Controller()
@@ -290,10 +286,6 @@ while cap.isOpened():
                 cv2.putText(image, 'input mode: digit', (10, image_height - 80),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
 
-            # get the correct model with respect to the input_mode
-            active_model = model_map_choice[input_mode][0]
-            active_map = model_map_choice[input_mode][1]
-
             #if we are NOT in confidence selection stage, then right hand is enabled.
             if handedness == 'Right' and choice1 == None and choice2 == None:
                 # if right hand is pose 'one', append fingertip path
@@ -311,10 +303,18 @@ while cap.isOpened():
                     drawn_path_resized = crop_and_draw_path(drawn_image, fingertip_path_right)
 
                     if drawn_path_resized is not None:
-                        tensor_input_image_reshaped = drawn_path_resized.T.reshape((1, 1, 28, 28))
+                        # get the correct model with respect to the input_mode
+                        if input_mode == 1:
+                            active_model = char_model
+                            active_map = char_map
+                            tensor_input_image_reshaped = drawn_path_resized.T.reshape((1, 1, 28, 28))
+                        else:
+                            active_model = digit_model
+                            active_map = digit_map
+                            tensor_input_image_reshaped = drawn_path_resized.T.reshape((-1, 28*28))
+
                         tensor_input_image = torch.from_numpy(tensor_input_image_reshaped) / 255
                         character_confidences = active_model(tensor_input_image.to(DEVICE))
-
                         _, label = torch.max(character_confidences, axis=1)
 
                         top2 = torch.topk(character_confidences, 2).indices.tolist()[0]
