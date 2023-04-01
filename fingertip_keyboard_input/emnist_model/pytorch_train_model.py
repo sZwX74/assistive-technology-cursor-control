@@ -80,7 +80,7 @@ if __name__ == "__main__":
     # train and save model
 
     # uncomment this line if you want to continue training an existing model
-    # model.load_model(path = save_dir)
+    model.load_model(path = save_dir)
     training_results = train(model,
                              save_dir,
                              epochs = epochs,
