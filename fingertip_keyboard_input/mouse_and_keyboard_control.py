@@ -71,13 +71,13 @@ def palm_center(keypoints):
     center = tuple(np.int32(center * image.shape[1::-1]))
     return center, radius
 
-def absolute(center):
-    scale = 2
-    print("center:", center)
-    x = center[0] * screen_width // (scale * image_width)
-    y = center[1] * screen_height // (scale * image_height)
-    print(x, y)
-    pyautogui.moveTo(x, y, _pause=False)
+# def absolute(center):
+#     scale = 2
+#     print("center:", center)
+#     x = center[0] * screen_width // (scale * image_width)
+#     y = center[1] * screen_height // (scale * image_height)
+#     print(x, y)
+#     pyautogui.moveTo(x, y, _pause=False)
 
 def absolute_scale(hand_center):
     top_left = [0.50 * image_width, 0.50 * image_height]
@@ -88,16 +88,16 @@ def absolute_scale(hand_center):
     pyautogui.moveTo(out_x, out_y, _pause=False)
 
 
-def joystick(center, frame):
-    mouse_vector = center - joystick_center
-    length = np.linalg.norm(mouse_vector)
-    if length > joystick_radius:
-        mouse_vector = mouse_vector - np.array([joystick_radius, joystick_radius])
-        # mouse_vector = mouse_vector / length * (length - joystick_radius)
-        # mouse_move = np.multiply(np.power(abs(mouse_vector), 1.75) * 0.05, np.sign(mouse_vector))
-        pyautogui.move(np.int32(mouse_vector)[0], np.int32(mouse_vector)[1], _pause=False)
-        print('mouse vector', mouse_vector)
-    cv2.line(frame, tuple(joystick_center), tuple(np.int32(center)), (255, 0, 0), 2)
+# def joystick(center, frame):
+#     mouse_vector = center - joystick_center
+#     length = np.linalg.norm(mouse_vector)
+#     if length > joystick_radius:
+#         mouse_vector = mouse_vector - np.array([joystick_radius, joystick_radius])
+#         # mouse_vector = mouse_vector / length * (length - joystick_radius)
+#         # mouse_move = np.multiply(np.power(abs(mouse_vector), 1.75) * 0.05, np.sign(mouse_vector))
+#         pyautogui.move(np.int32(mouse_vector)[0], np.int32(mouse_vector)[1], _pause=False)
+#         print('mouse vector', mouse_vector)
+#     cv2.line(frame, tuple(joystick_center), tuple(np.int32(center)), (255, 0, 0), 2)
     
 def get_filtered_center(center, t):
     x_center = x_filter(t, center[0])
@@ -112,13 +112,14 @@ hands, mp_hands = util.mediapipe_hand_setup()
 # gesture recognition setup
 templates, templates_category = util.load_temp()
 
+# Webcam resolution:
+#   https://stackoverflow.com/questions/19448078/python-opencv-access-webcam-maximum-resolution
 # video streaming setup
 cap = cv2.VideoCapture(0)
-
-# mouse filtering setup
-x_filter = one_euro_filter.OneEuroFilter(0, 0)
-y_filter = one_euro_filter.OneEuroFilter(0, 0)
-frame = 0
+# cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+# cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+# cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+# print(f"Attempted to set frame width, currently {str(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),str(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
 
 # -------- begin keyboard input setup --------
 keyboard = Controller()
@@ -166,13 +167,18 @@ mode_mapping = {"one_left": 'cursor', "two_left": 'scroll', "three_left": 'volum
 time_start = None
 leftclick_start = None
 rightclick_start = None
-center_queue = collections.deque(5 * [(0, 0)], 5)
+# center_queue = collections.deque(5 * [(0, 0)], 5)
 
 success, image = cap.read()
 screen_width, screen_height = pyautogui.size()
 image_height, image_width = image.shape[:2]
-joystick_center = np.array([int(0.75 * image_width), int(0.5 * image_height)])
-joystick_radius = 40
+# joystick_center = np.array([int(0.75 * image_width), int(0.5 * image_height)])
+# joystick_radius = 40
+
+# mouse filtering setup
+x_filter = one_euro_filter.OneEuroFilter(0, 0.675 * image_width)
+y_filter = one_euro_filter.OneEuroFilter(0, 0.65 * image_height)
+frame = 0
 
 pyautogui.FAILSAFE = False
 
@@ -241,15 +247,15 @@ while cap.isOpened():
                 if mode == 'scroll':
                     if right_gesture == "one":
                         # pyautogui.press('up')
-                        pyautogui.scroll(5)
+                        pyautogui.scroll(10)
                     elif right_gesture == 'arrow':
                         pyautogui.press('down')
                         # pyautogui.press('down')
-                        pyautogui.scroll(-5)
+                        pyautogui.scroll(-10)
                     elif right_gesture == "two":
-                        pyautogui.hscroll(10)
+                        pyautogui.hscroll(50)
                     elif right_gesture == "three":
-                        pyautogui.hscroll(-10) 
+                        pyautogui.hscroll(-50) 
                 elif mode == 'cursor' and right_landmarks is not None:
                     frame += 1 # used for filter
                     keypoints = hand_keypoints(right_landmarks)
@@ -274,15 +280,24 @@ while cap.isOpened():
                     # cv2.line(image, (0.5 * width, 0.75 * image_height), (1 * width, 0.75 * image_height), (0, 255, 0), 3)
                     cv2.rectangle(image, (int(0.50 * image_width), int(0.50 * image_height)), (int(0.85 * image_width), int(0.80 * image_height)), (0, 255, 0), 3)
 
-                    if right_gesture == 'arrow':
-                        if not leftclick_start:
-                            leftclick_start = time.time()
-                        elif time.time() - leftclick_start <= 1:
-                            continue
-                            # cv2.putText(image, "leftclick: %d" %( - (time.time() - leftclick_start)), (10, 200), cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
-                        else:
-                            leftclick_start = None
-                            pyautogui.click()
+                    if right_gesture == 'arrow' and prev_right_gesture != 'arrow':
+                        pyautogui.click()
+
+                    # --- note: the commented code below allows for "continuous" clicking ---
+                    #     where holding the gesture allows for clicking every second
+                    #     at the cost of extreme camera lag. This may be wanted, but is
+                    #     commented out for now
+                    # if right_gesture == 'arrow' and prev_right_gesture != 'arrow':
+                        # if not leftclick_start:
+                            # leftclick_start = time.time()
+                        # elif time.time() - leftclick_start <= 1:
+                            # continue
+                        # else:
+                            # leftclick_start = None
+                            # pyautogui.click()
+                    # -------- end note -----------
+
+
                     elif right_gesture == "two":
                         pyautogui.doubleClick()
                     elif right_gesture == "one":
