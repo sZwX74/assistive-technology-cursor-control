@@ -311,7 +311,7 @@ while cap.isOpened():
                         else:
                             active_model = digit_model
                             active_map = digit_map
-                            tensor_input_image_reshaped = drawn_path_resized.T.reshape((-1, 28*28))
+                            tensor_input_image_reshaped = drawn_path_resized.reshape((-1, 28*28))
 
                         tensor_input_image = torch.from_numpy(tensor_input_image_reshaped) / 255
                         character_confidences = active_model(tensor_input_image.to(DEVICE))
