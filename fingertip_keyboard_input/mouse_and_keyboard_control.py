@@ -14,11 +14,12 @@ import re
 import alignment
 import util
 import sys
-sys.path.insert(0, './emnist_model/')
+# sys.path.insert(0, './emnist_model/')
 
 import torch
-import pytorch_model_class
-from pytorch_model_class import DEVICE
+import mnist_model.pytorch_model_class
+import emnist_model.pytorch_model_class
+from emnist_model.pytorch_model_class import DEVICE
 
 import keyboard_util
 
@@ -115,10 +116,11 @@ templates, templates_category = util.load_temp()
 # Webcam resolution:
 #   https://stackoverflow.com/questions/19448078/python-opencv-access-webcam-maximum-resolution
 # video streaming setup
-cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-print(f"Attempted to set frame width, currently {str(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),str(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
+cap = cv2.VideoCapture(0)
+# cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+# cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+# cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+# print(f"Attempted to set frame width, currently {str(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),str(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
 
 # -------- begin keyboard input setup --------
 keyboard = Controller()
@@ -146,17 +148,29 @@ right_rising_edge_gesture = False
 drawn_image = None
 
 # load ML classification model
-model = pytorch_model_class.CNN_SRM().to(DEVICE)
-model.load_model(path = './emnist_model/saved_models')
+digit_model = mnist_model.pytorch_model_class.NetReluShallow(D_in=28 * 28, H1=100, H2=100, D_out=10)
+digit_model.load_model(path = './mnist_model/saved_models')
+
+char_model = emnist_model.pytorch_model_class.CNN_SRM().to(DEVICE)
+char_model.load_model(path = './emnist_model/saved_models')
+
+# mapping from model outputs to digits / characters
+# digit mapping based on mnist dataset
+digit_map = {
+    0: '0',  1: '1',  2: '2',  3: '3',  4: '4',  5: '5',  6: '6',  7: '7',  8: '8', 9: '9'
+}
 
 # mapping of characters to digits
 # mapping based on https://arxiv.org/pdf/1702.05373.pdf, balanced dataset+++
-char_map = { 0: '0',  1: '1',  2: '2',  3: '3',  4: '4',  5: '5',  6: '6',  7: '7',  8: '8', 9: '9',
-            10: 'A', 11: 'B', 12: 'C', 13: 'D', 14: 'E', 15: 'F', 16: 'G', 17: 'H', 18: 'I',
-            19: 'J', 20: 'K', 21: 'L', 22: 'M', 23: 'N', 24: 'O', 25: 'P', 26: 'Q', 27: 'R',
-            28: 'S', 29: 'T', 30: 'U', 31: 'V', 32: 'W', 33: 'X', 34: 'Y', 35: 'Z', 
-            36: 'a', 37: 'b', 38: 'd', 39: 'e', 40: 'f', 41: 'g', 42: 'h', 43: 'n', 44: 'q',
-            45: 'r', 46: 't'}
+char_map = {
+    0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'E', 5: 'F', 6: 'G', 7: 'H', 8: 'I',
+    9: 'J', 10: 'K', 11: 'L', 12: 'M', 13: 'N', 14: 'O', 15: 'P', 16: 'Q', 17: 'R',
+    18: 'S', 19: 'T', 20: 'U', 21: 'V', 22: 'W', 23: 'X', 24: 'Y', 25: 'Z'
+}
+
+# we use char recognition by default
+input_mode = 1 # 1 for char, -1 for digit
+
 # -------- end keyboard input setup --------
 
 
@@ -170,16 +184,7 @@ rightclick_start = None
 
 success, image = cap.read()
 screen_width, screen_height = pyautogui.size()
-# image_height, image_width = image.shape[:2]
-image_width, image_height = 640, 480
-require_rescale = False
-
-if image.shape[:2] != (image_height, image_width):
-    curr_height, curr_width = image.shape[0], image.shape[1]
-    pixel_width_to_delete = int((curr_width - curr_height * (4/3)) / 2)
-    print(f'Crop required, Number of pixels to crop: {pixel_width_to_delete}')
-    require_rescale = True
-
+image_height, image_width = image.shape[:2]
 # joystick_center = np.array([int(0.75 * image_width), int(0.5 * image_height)])
 # joystick_radius = 40
 
@@ -194,7 +199,6 @@ win_name = "Mouse/Keyboard Controller"
 # cv2.namedWindow(win_name, cv2.WND_PROP_ASPECT_RATIO)
 cv2.imshow(win_name, image)
 cv2.setWindowProperty(win_name, cv2.WND_PROP_TOPMOST, 1)
-# cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
 while cap.isOpened():
     # get tick count for measuring latency
@@ -203,10 +207,6 @@ while cap.isOpened():
 
     success, image = cap.read()
     image = cv2.flip(image, 1)
-
-    if require_rescale:
-        image = image[:, pixel_width_to_delete : curr_width-pixel_width_to_delete]
-        image = cv2.resize(image, (image_width, image_height))
 
     if not success:
         print("Ignoring empty camera frame.")
@@ -259,8 +259,11 @@ while cap.isOpened():
                 cv2.putText(image, 'mode: ' + mode, (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
                 if mode == 'scroll':
                     if right_gesture == "one":
+                        # pyautogui.press('up')
                         pyautogui.scroll(10)
                     elif right_gesture == 'arrow':
+                        pyautogui.press('down')
+                        # pyautogui.press('down')
                         pyautogui.scroll(-10)
                     elif right_gesture == "two":
                         pyautogui.hscroll(50)
@@ -306,6 +309,7 @@ while cap.isOpened():
                             # leftclick_start = None
                             # pyautogui.click()
                     # -------- end note -----------
+
 
                     elif right_gesture == "two":
                         pyautogui.doubleClick()
@@ -407,14 +411,23 @@ while cap.isOpened():
                 drawn_path_resized = keyboard_util.crop_and_draw_path(drawn_image, fingertip_path_right)
 
                 if drawn_path_resized is not None:
-                    tensor_input_image_reshaped = drawn_path_resized.T.reshape((1, 1, 28, 28))
+                    # get the correct model with respect to the input_mode
+                    if input_mode == 1:
+                        active_model = char_model
+                        active_map = char_map
+                        tensor_input_image_reshaped = drawn_path_resized.T.reshape((1, 1, 28, 28))
+                    else:
+                        active_model = digit_model
+                        active_map = digit_map
+                        tensor_input_image_reshaped = drawn_path_resized.reshape((-1, 28*28))
+
                     tensor_input_image = torch.from_numpy(tensor_input_image_reshaped) / 255
-                    character_confidences = model(tensor_input_image.to(DEVICE))
-                    
+                    character_confidences = active_model(tensor_input_image.to(DEVICE))
+
                     _, label = torch.max(character_confidences, axis=1)
-                    print(f'Recognized character: {char_map[int(label)]}')
-                    keyboard.press(char_map[int(label)])
-                    keyboard.release(char_map[int(label)])
+                    print(f'Recognized character: {active_map[int(label)]}')
+                    keyboard.press(active_map[int(label)])
+                    keyboard.release(active_map[int(label)])
 
                 # reset path
                 fingertip_path_right = []
@@ -456,6 +469,21 @@ while cap.isOpened():
                 keyboard.press(Key.backspace)
                 keyboard.release(Key.backspace)
 
+            if left_gesture == 'four_left' and prev_left_gesture != "four_left":
+                input_mode *= -1
+
+            # TODO: we might want to look into border box / some other indication instead of text
+            if input_mode == 1:
+                cv2.putText(image, 'input mode: char', (int(image_width * 0.25),
+                                                        int(image_height * 0.9)),
+                                                        cv2.FONT_HERSHEY_SIMPLEX, 1,
+                                                        (209, 80, 0, 255), 3)
+            else:
+                cv2.putText(image, 'input mode: digit', (int(image_width * 0.25),
+                                                         int(image_height * 0.9)),
+                                                         cv2.FONT_HERSHEY_SIMPLEX, 1,
+                                                         (209, 80, 0, 255), 3)
+
         # draw the path of the fingertip
         if len(fingertip_path_right) > 0:
             image = keyboard_util.draw_path(image, fingertip_path_right)        
@@ -479,7 +507,7 @@ while cap.isOpened():
     # # calculate latency
     # tick_end = cv2.getTickCount()
     # latency = (tick_end - tick_start) / cv2.getTickFrequency()
-    # print(f'Latency: {latency:.3f} seconds per loop'.format())
+    # print('Latency: {} seconds'.format(latency))
     
     if cv2.waitKey(5) & 0xFF == 27:
       break
