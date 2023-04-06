@@ -175,6 +175,10 @@ input_mode = 1 # 1 for char, -1 for digit
 choice1 = None
 choice2 = None
 choice_made = None
+choice1_start_percentage = None
+choice1_end_percentage = None
+choice2_start_percentage = None
+choice2_end_percentage = None
 
 # -------- end keyboard input setup --------
 
