@@ -2,6 +2,8 @@ import torch
 import pytorch_model_class
 import matplotlib.pylab as plt
 import data_loader
+from tqdm import tqdm
+from pytorch_model_class import DEVICE
 
 def eval(model, train_noise = False, validation_noise = False):
     # load data
@@ -10,8 +12,9 @@ def eval(model, train_noise = False, validation_noise = False):
 
     # train accuracy
     train_correct = 0
-    for x, y in train_loader:
-        z = model(x.view(-1, 28 * 28))
+    for x, y in tqdm(train_loader):
+        y = y.to(DEVICE)
+        z = model(x.view(-1, 28 * 28).to(DEVICE))
         _, label = torch.max(z, 1)
         train_correct += (label == y).sum().item()
 
@@ -19,8 +22,9 @@ def eval(model, train_noise = False, validation_noise = False):
 
     # validation accuracy
     validation_correct = 0
-    for x, y in validation_loader:
-        z = model(x.view(-1, 28 * 28))
+    for x, y in tqdm(validation_loader):
+        y = y.to(DEVICE)
+        z = model(x.view(-1, 28 * 28).to(DEVICE))
         _, label = torch.max(z, 1)
         validation_correct += (label == y).sum().item()
 
@@ -37,7 +41,7 @@ if __name__ == "__main__":
     H2 = 100
     D_out = 10
 
-    model = pytorch_model_class.NetReluShallow(D_in, H1, H2, D_out)
+    model = pytorch_model_class.NetReluShallow(D_in, H1, H2, D_out).to(DEVICE)
     # model = pytorch_model_class.NetReluDeep()
 
     # load model and evalulate
