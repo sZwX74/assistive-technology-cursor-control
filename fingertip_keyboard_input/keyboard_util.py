@@ -59,20 +59,29 @@ def crop_and_draw_path(drawn_image, points):
 
 def draw_modifiers_boxes(image, percent=0.2, color=((0, 255, 0)), thickness=3):
     image_height, image_width, __ = image.shape
-    bksp_start_point = [0,0]
     height_ratio = 0.5
+    bksp_start_point = [0,0]
+    space_start_point = [0, int(image_height * height_ratio)]
     bksp_end_point = [int(image_width * percent), int(image_height * height_ratio)]
+    space_end_point = [int(image_width * percent), image_height]
 
+    # backspace
     image = cv2.rectangle(image, bksp_start_point, bksp_end_point, color, thickness)
 
     cv2.putText(image, 'Back', [int(image_width*percent / 5), int(image_height * 0.5 * (2./5))],
                 cv2.FONT_HERSHEY_SIMPLEX, 1, color, thickness)
     cv2.putText(image, 'space', [int(image_width*percent / 5), int(image_height * 0.5 * (3./5))],
                 cv2.FONT_HERSHEY_SIMPLEX, 1, color, thickness)
+    
+    # space
+    image = cv2.rectangle(image, space_start_point, space_end_point, color, thickness)
 
-    bksp_end_percentage = [percent, height_ratio]
+    cv2.putText(image, 'Space', [int(image_width*percent / 5), int(image_height * (3./4))],
+                cv2.FONT_HERSHEY_SIMPLEX, 1, color, thickness)
 
-    return image, bksp_end_percentage
+    bksp_space_end_percentage = [percent, height_ratio]
+
+    return image, bksp_space_end_percentage
 
 def modifiers_hand_position(mp_hands, hand_landmarks):
     hand_points_interest_x = \

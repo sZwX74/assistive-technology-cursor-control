@@ -4,6 +4,7 @@ import cv2
 import pyautogui
 from pynput import keyboard
 from pynput.keyboard import Controller, Key
+import one_euro_filter
 
 import collections
 import time
@@ -13,11 +14,12 @@ import re
 import alignment
 import util
 import sys
-sys.path.insert(0, './emnist_model/')
+# sys.path.insert(0, './emnist_model/')
 
 import torch
-import pytorch_model_class
-from pytorch_model_class import DEVICE
+import mnist_model.pytorch_model_class
+import emnist_model.pytorch_model_class
+from emnist_model.pytorch_model_class import DEVICE
 
 import keyboard_util
 
@@ -50,6 +52,7 @@ def hand_keypoints(hand_landmarks):
         points.append([landmark.x, landmark.y, landmark.z])
     return np.array(points)
 
+# https://en.wikipedia.org/wiki/Shoelace_formula to determine area
 def shoelace_area(points):
     x0, y0 = np.hsplit(points, 2)
     points1 = np.roll(points, -1, axis=0)
@@ -59,8 +62,8 @@ def shoelace_area(points):
     return area, x0 + x1, y0 + y1, combination
 
 def palm_center(keypoints):
-    indices = [0, 1, 5, 9, 13, 17]
-    points = keypoints[indices, :2]
+    indices = [0, 1, 5, 9, 13, 17]   # indices of mediapipe landmarks
+    points = keypoints[indices, :2]  # x and y coordinates of landmarks
     area, x, y, combination = shoelace_area(points)
     center_x = np.sum(x * combination) / (6 * area)
     center_y = np.sum(y * combination) / (6 * area)
@@ -69,34 +72,38 @@ def palm_center(keypoints):
     center = tuple(np.int32(center * image.shape[1::-1]))
     return center, radius
 
-def absolute(center):
-    scale = 2
-    print("center:", center)
-    x = center[0] * screen_width // (scale * image_width)
-    y = center[1] * screen_height // (scale * image_height)
-    print(x, y)
-    pyautogui.moveTo(x, y, _pause=False)
+# def absolute(center):
+#     scale = 2
+#     print("center:", center)
+#     x = center[0] * screen_width // (scale * image_width)
+#     y = center[1] * screen_height // (scale * image_height)
+#     print(x, y)
+#     pyautogui.moveTo(x, y, _pause=False)
 
-def absolute_scale(center):
-    start_point = [0.50 * image_width, 0.25 * image_height]
-    scale = screen_width // (0.25 * image_width)
+def absolute_scale(hand_center):
+    top_left = [0.50 * image_width, 0.50 * image_height]
+    scale = screen_width // (0.33 * image_width)
     #scale_y = screen_height // (0.5 * height)
-    out_x = scale * (center[0] - start_point[0])
-    out_y = scale * (center[1] - start_point[1])
+    out_x = scale * (hand_center[0] - top_left[0])
+    out_y = scale * (hand_center[1] - top_left[1])
     pyautogui.moveTo(out_x, out_y, _pause=False)
 
 
-def joystick(center, frame):
-    mouse_vector = center - joystick_center
-    length = np.linalg.norm(mouse_vector)
-    if length > joystick_radius:
-        mouse_vector = mouse_vector - np.array([joystick_radius, joystick_radius])
-        # mouse_vector = mouse_vector / length * (length - joystick_radius)
-        # mouse_move = np.multiply(np.power(abs(mouse_vector), 1.75) * 0.05, np.sign(mouse_vector))
-        pyautogui.move(np.int32(mouse_vector)[0], np.int32(mouse_vector)[1], _pause=False)
-        print('mouse vector', mouse_vector)
-    cv2.line(frame, tuple(joystick_center), tuple(np.int32(center)), (255, 0, 0), 2)
+# def joystick(center, frame):
+#     mouse_vector = center - joystick_center
+#     length = np.linalg.norm(mouse_vector)
+#     if length > joystick_radius:
+#         mouse_vector = mouse_vector - np.array([joystick_radius, joystick_radius])
+#         # mouse_vector = mouse_vector / length * (length - joystick_radius)
+#         # mouse_move = np.multiply(np.power(abs(mouse_vector), 1.75) * 0.05, np.sign(mouse_vector))
+#         pyautogui.move(np.int32(mouse_vector)[0], np.int32(mouse_vector)[1], _pause=False)
+#         print('mouse vector', mouse_vector)
+#     cv2.line(frame, tuple(joystick_center), tuple(np.int32(center)), (255, 0, 0), 2)
     
+def get_filtered_center(center, t):
+    x_center = x_filter(t, center[0])
+    y_center = y_filter(t, center[1])
+    return [x_center, y_center]
 
 
 # mediapipe setup
@@ -106,8 +113,14 @@ hands, mp_hands = util.mediapipe_hand_setup()
 # gesture recognition setup
 templates, templates_category = util.load_temp()
 
+# Webcam resolution:
+#   https://stackoverflow.com/questions/19448078/python-opencv-access-webcam-maximum-resolution
 # video streaming setup
 cap = cv2.VideoCapture(0)
+# cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+# cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+# cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+# print(f"Attempted to set frame width, currently {str(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),str(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
 
 # -------- begin keyboard input setup --------
 keyboard = Controller()
@@ -124,6 +137,7 @@ fingertip_path_right = []
 prev_left_gesture = None
 prev_right_gesture = None
 backspace_available = False
+space_available = False
 right_gesture = None
 left_gesture = None
 right_landmarks = None
@@ -134,17 +148,29 @@ right_rising_edge_gesture = False
 drawn_image = None
 
 # load ML classification model
-model = pytorch_model_class.CNN_SRM().to(DEVICE)
-model.load_model(path = './emnist_model/saved_models')
+digit_model = mnist_model.pytorch_model_class.NetReluShallow(D_in=28 * 28, H1=100, H2=100, D_out=10)
+digit_model.load_model(path = './mnist_model/saved_models')
+
+char_model = emnist_model.pytorch_model_class.CNN_SRM().to(DEVICE)
+char_model.load_model(path = './emnist_model/saved_models')
+
+# mapping from model outputs to digits / characters
+# digit mapping based on mnist dataset
+digit_map = {
+    0: '0',  1: '1',  2: '2',  3: '3',  4: '4',  5: '5',  6: '6',  7: '7',  8: '8', 9: '9'
+}
 
 # mapping of characters to digits
 # mapping based on https://arxiv.org/pdf/1702.05373.pdf, balanced dataset+++
-char_map = { 0: '0',  1: '1',  2: '2',  3: '3',  4: '4',  5: '5',  6: '6',  7: '7',  8: '8', 9: '9',
-            10: 'A', 11: 'B', 12: 'C', 13: 'D', 14: 'E', 15: 'F', 16: 'G', 17: 'H', 18: 'I',
-            19: 'J', 20: 'K', 21: 'L', 22: 'M', 23: 'N', 24: 'O', 25: 'P', 26: 'Q', 27: 'R',
-            28: 'S', 29: 'T', 30: 'U', 31: 'V', 32: 'W', 33: 'X', 34: 'Y', 35: 'Z', 
-            36: 'a', 37: 'b', 38: 'd', 39: 'e', 40: 'f', 41: 'g', 42: 'h', 43: 'n', 44: 'q',
-            45: 'r', 46: 't'}
+char_map = {
+    0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'E', 5: 'F', 6: 'G', 7: 'H', 8: 'I',
+    9: 'J', 10: 'K', 11: 'L', 12: 'M', 13: 'N', 14: 'O', 15: 'P', 16: 'Q', 17: 'R',
+    18: 'S', 19: 'T', 20: 'U', 21: 'V', 22: 'W', 23: 'X', 24: 'Y', 25: 'Z'
+}
+
+# we use char recognition by default
+input_mode = 1 # 1 for char, -1 for digit
+
 # -------- end keyboard input setup --------
 
 
@@ -154,13 +180,18 @@ mode_mapping = {"one_left": 'cursor', "two_left": 'scroll', "three_left": 'volum
 time_start = None
 leftclick_start = None
 rightclick_start = None
-center_queue = collections.deque(5 * [(0, 0)], 5)
+# center_queue = collections.deque(5 * [(0, 0)], 5)
 
 success, image = cap.read()
 screen_width, screen_height = pyautogui.size()
 image_height, image_width = image.shape[:2]
-joystick_center = np.array([int(0.75 * image_width), int(0.5 * image_height)])
-joystick_radius = 40
+# joystick_center = np.array([int(0.75 * image_width), int(0.5 * image_height)])
+# joystick_radius = 40
+
+# mouse filtering setup
+x_filter = one_euro_filter.OneEuroFilter(0, 0.675 * image_width)
+y_filter = one_euro_filter.OneEuroFilter(0, 0.65 * image_height)
+frame = 0
 
 pyautogui.FAILSAFE = False
 
@@ -185,7 +216,7 @@ while cap.isOpened():
     # always show bounding boxes if in keyboard mode
     if is_keyboard_mode:
         # draw the bounding box for the backspace area of the screen
-        image, bksp_end_percentage = keyboard_util.draw_modifiers_boxes(image)
+        image, bksp_space_end_percentage = keyboard_util.draw_modifiers_boxes(image)
 
     # get hand keypoints
     mp_success, num_hands, results = util.mediapipe_process(image, hands)
@@ -229,23 +260,25 @@ while cap.isOpened():
                 if mode == 'scroll':
                     if right_gesture == "one":
                         # pyautogui.press('up')
-                        pyautogui.scroll(5)
+                        pyautogui.scroll(10)
                     elif right_gesture == 'arrow':
                         pyautogui.press('down')
                         # pyautogui.press('down')
-                        pyautogui.scroll(-5)
+                        pyautogui.scroll(-10)
                     elif right_gesture == "two":
-                        pyautogui.hscroll(10)
+                        pyautogui.hscroll(50)
                     elif right_gesture == "three":
-                        pyautogui.hscroll(-10) 
+                        pyautogui.hscroll(-50) 
                 elif mode == 'cursor' and right_landmarks is not None:
+                    frame += 1 # used for filter
                     keypoints = hand_keypoints(right_landmarks)
                     center, radius = palm_center(keypoints)
-                    center_queue.appendleft(center)
-                    center = np.mean(center_queue, axis=0)
+                    center = get_filtered_center(center, frame)
+                    # center_queue.appendleft(center)
+                    # center = np.mean(center_queue, axis=0)
                     #absolute(center)
                     absolute_scale(center)
-                    scale = screen_width // (0.5 * image_width)
+                    # scale = screen_width // (0.5 * image_width)
                     #joystick(center, image)
 
                     # center and palm tracking
@@ -258,17 +291,26 @@ while cap.isOpened():
                     # cv2.line(image, (1 * width, 0.25 * image_height), (1 * width, 0.75 * image_height), (0, 255, 0), 3)
                     # cv2.line(image, (0.5 * width, 0.25 * image_height), (1 * width, 0.25 * image_height), (0, 255, 0), 3)
                     # cv2.line(image, (0.5 * width, 0.75 * image_height), (1 * width, 0.75 * image_height), (0, 255, 0), 3)
-                    cv2.rectangle(image, (int(0.50 * image_width), int(0.75 * image_height)), (int(0.80 * image_width), int(0.25 * image_height)), (0, 255, 0), 3)
+                    cv2.rectangle(image, (int(0.50 * image_width), int(0.50 * image_height)), (int(0.85 * image_width), int(0.80 * image_height)), (0, 255, 0), 3)
 
-                    if right_gesture == 'arrow':
-                        if not leftclick_start:
-                            leftclick_start = time.time()
-                        elif time.time() - leftclick_start <= 1:
-                            continue
-                            # cv2.putText(image, "leftclick: %d" %( - (time.time() - leftclick_start)), (10, 200), cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
-                        else:
-                            leftclick_start = None
-                            pyautogui.click()
+                    if right_gesture == 'arrow' and prev_right_gesture != 'arrow':
+                        pyautogui.click()
+
+                    # --- note: the commented code below allows for "continuous" clicking ---
+                    #     where holding the gesture allows for clicking every second
+                    #     at the cost of extreme camera lag. This may be wanted, but is
+                    #     commented out for now
+                    # if right_gesture == 'arrow' and prev_right_gesture != 'arrow':
+                        # if not leftclick_start:
+                            # leftclick_start = time.time()
+                        # elif time.time() - leftclick_start <= 1:
+                            # continue
+                        # else:
+                            # leftclick_start = None
+                            # pyautogui.click()
+                    # -------- end note -----------
+
+
                     elif right_gesture == "two":
                         pyautogui.doubleClick()
                     elif right_gesture == "one":
@@ -369,14 +411,23 @@ while cap.isOpened():
                 drawn_path_resized = keyboard_util.crop_and_draw_path(drawn_image, fingertip_path_right)
 
                 if drawn_path_resized is not None:
-                    tensor_input_image_reshaped = drawn_path_resized.T.reshape((1, 1, 28, 28))
+                    # get the correct model with respect to the input_mode
+                    if input_mode == 1:
+                        active_model = char_model
+                        active_map = char_map
+                        tensor_input_image_reshaped = drawn_path_resized.T.reshape((1, 1, 28, 28))
+                    else:
+                        active_model = digit_model
+                        active_map = digit_map
+                        tensor_input_image_reshaped = drawn_path_resized.reshape((-1, 28*28))
+
                     tensor_input_image = torch.from_numpy(tensor_input_image_reshaped) / 255
-                    character_confidences = model(tensor_input_image.to(DEVICE))
-                    
+                    character_confidences = active_model(tensor_input_image.to(DEVICE))
+
                     _, label = torch.max(character_confidences, axis=1)
-                    print(f'Recognized character: {char_map[int(label)]}')
-                    keyboard.press(char_map[int(label)])
-                    keyboard.release(char_map[int(label)])
+                    print(f'Recognized character: {active_map[int(label)]}')
+                    keyboard.press(active_map[int(label)])
+                    keyboard.release(active_map[int(label)])
 
                 # reset path
                 fingertip_path_right = []
@@ -390,21 +441,48 @@ while cap.isOpened():
                 hand_pos_percent = keyboard_util.modifiers_hand_position(mp_hands, left_landmarks)
             
                 # if in backspace box, backspace once
-                if hand_pos_percent[0] < bksp_end_percentage[0] and hand_pos_percent[1]\
-                                                                    < bksp_end_percentage[1]:
+                if hand_pos_percent[0] < bksp_space_end_percentage[0] and hand_pos_percent[1]\
+                                                                    < bksp_space_end_percentage[1]:
                     if not backspace_available:
                         keyboard.press(Key.backspace)
                         keyboard.release(Key.backspace)
                         backspace_available = True
-                
+            
                 # once hand leaves the box, make backspace possible again
                 else:
                     backspace_available = False
+                
+                # if in space box, space once
+                if hand_pos_percent[0] < bksp_space_end_percentage[0] and hand_pos_percent[1]\
+                                                                    > bksp_space_end_percentage[1]:
+                    if not space_available:
+                        keyboard.press(Key.space)
+                        keyboard.release(Key.space)
+                        space_available = True
+            
+                # once hand leaves the box, make space possible again
+                else:
+                    space_available = False
 
             # backspace once using gesture
             if left_gesture == "one_left" and prev_left_gesture != "one_left":
                 keyboard.press(Key.backspace)
                 keyboard.release(Key.backspace)
+
+            if left_gesture == 'four_left' and prev_left_gesture != "four_left":
+                input_mode *= -1
+
+            # TODO: we might want to look into border box / some other indication instead of text
+            if input_mode == 1:
+                cv2.putText(image, 'input mode: char', (int(image_width * 0.25),
+                                                        int(image_height * 0.9)),
+                                                        cv2.FONT_HERSHEY_SIMPLEX, 1,
+                                                        (209, 80, 0, 255), 3)
+            else:
+                cv2.putText(image, 'input mode: digit', (int(image_width * 0.25),
+                                                         int(image_height * 0.9)),
+                                                         cv2.FONT_HERSHEY_SIMPLEX, 1,
+                                                         (209, 80, 0, 255), 3)
 
         # draw the path of the fingertip
         if len(fingertip_path_right) > 0:
