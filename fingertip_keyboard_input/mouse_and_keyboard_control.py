@@ -128,7 +128,7 @@ cap = cv2.VideoCapture(0)
 system_type = platform
 if system_type.lower() == "darwin":
     system_type = "Mac"
-elif system_type.lower() == "windows":
+elif system_type.lower().startswith() == "win":
     system_type = "Windows"
 else:
     system_type = "Linux"
@@ -351,13 +351,13 @@ while cap.isOpened():
                                 pyautogui.hotkey('command', 'tab')
                             elif system_type == "Windows":
                                 pyautogui.hotkey('alt', 'tab')
-                        elif right_gesture == "two": #browse windows
-                            # pyautogui.hotkey('ctrl', 'up')
-                            if system_type == "Mac":
-                                pyautogui.hotkey('ctrl', 'up')
-                            elif system_type == "Windows":
-                                pyautogui.hotkey('ctrl', 'alt', 'tab')
-                        elif right_gesture == "three": #minimize active window
+                        # elif right_gesture == "two": #browse windows
+                        #     # pyautogui.hotkey('ctrl', 'up')
+                        #     if system_type == "Mac":
+                        #         pyautogui.hotkey('ctrl', 'up')
+                        #     elif system_type == "Windows":
+                        #         pyautogui.hotkey('ctrl', 'alt', 'tab')
+                        elif right_gesture == "two": #minimize active window
                             # pyautogui.hotkey('command', 'm')
                             if system_type == "Mac":
                                 pyautogui.hotkey('command', 'm')
@@ -413,7 +413,7 @@ while cap.isOpened():
                             if system_type == "Mac":
                                 keyboard.press(Key.cmd)
                                 keyboard.press('+')
-                                keyboard.release('-')
+                                keyboard.release('+')
                                 keyboard.release(Key.cmd)
                             elif system_type == "Windows":
                                 keyboard.press(Key.ctrl)
