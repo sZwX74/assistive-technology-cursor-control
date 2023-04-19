@@ -1,7 +1,9 @@
 import torch
 import pytorch_model_class
+from pytorch_model_class import DEVICE
 import matplotlib.pylab as plt
 import data_loader
+from tqdm import tqdm
 
 def train(model, epochs = 10, learning_rate = 0.05,
           train_batch_size = 2000, validation_batch_size = 2000,
@@ -28,7 +30,8 @@ def train(model, epochs = 10, learning_rate = 0.05,
     for epoch in range(epochs):
         for i, (x, y) in enumerate(train_loader):
             optimizer.zero_grad()
-            z = model(x.view(-1, 28 * 28))
+            y = y.to(DEVICE)
+            z = model(x.view(-1, 28 * 28).to(DEVICE))
             loss = criterion(z, y)
             loss.backward()
             optimizer.step()
@@ -36,8 +39,9 @@ def train(model, epochs = 10, learning_rate = 0.05,
 
         # train accuracy
         train_correct = 0
-        for x, y in train_loader:
-            z = model(x.view(-1, 28 * 28))
+        for x, y in tqdm(train_loader):
+            y = y.to(DEVICE)
+            z = model(x.view(-1, 28 * 28).to(DEVICE))
             _, label = torch.max(z, 1)
             train_correct += (label == y).sum().item()
 
@@ -46,8 +50,9 @@ def train(model, epochs = 10, learning_rate = 0.05,
 
         # validation accuracy
         validation_correct = 0
-        for x, y in validation_loader:
-            z = model(x.view(-1, 28 * 28))
+        for x, y in tqdm(validation_loader):
+            y = y.to(DEVICE)
+            z = model(x.view(-1, 28 * 28).to(DEVICE))
             _, label = torch.max(z, 1)
             validation_correct += (label == y).sum().item()
 
@@ -68,7 +73,7 @@ if __name__ == "__main__":
     H2 = 128
     D_out = 10
 
-    model = pytorch_model_class.NetReluShallow(D_in, H1, H2, D_out)
+    model = pytorch_model_class.NetReluShallow(D_in, H1, H2, D_out).to(DEVICE)
     # model = pytorch_model_class.NetReluDeep()
 
     # train and save model

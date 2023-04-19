@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class NetRelu(nn.Module): # base virtual class
     def __init__(self, ):
@@ -15,7 +16,7 @@ class NetRelu(nn.Module): # base virtual class
         torch.save(self.state_dict(), path + '/' + self.name)
 
     def load_model(self, path):
-        self.load_state_dict(torch.load(path + '/' + self.name))
+        self.load_state_dict(torch.load(path + '/' + self.name, map_location = torch.device(DEVICE)))
         self.eval()
 
 
