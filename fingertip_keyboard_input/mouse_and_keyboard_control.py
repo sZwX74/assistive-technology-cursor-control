@@ -128,7 +128,7 @@ cap = cv2.VideoCapture(0)
 system_type = platform
 if system_type.lower() == "darwin":
     system_type = "Mac"
-elif system_type.lower().startswith() == "win":
+elif system_type.lower().startswith("win"):
     system_type = "Windows"
 else:
     system_type = "Linux"
@@ -339,116 +339,125 @@ while cap.isOpened():
                         elif right_gesture == "two":
                             keyboard.tap(Key.media_volume_mute)
                 elif mode == 'window':
-                    if time_start is None:
-                        time_start = time.time()
-                    time_stamp = time.time()
-                    if (time_stamp - time_start > 1):
-                        time_start = time_stamp
-                        if right_gesture == "one": #switch to previous app
-                            # pyautogui.hotkey('command', 'tab')
-                            # added Windows shortcut commands
-                            if system_type == "Mac":
-                                pyautogui.hotkey('command', 'tab')
-                            elif system_type == "Windows":
-                                pyautogui.hotkey('alt', 'tab')
+                    # if time_start is None:
+                    #     time_start = time.time()
+                    # time_stamp = time.time()
+                    # if (time_stamp - time_start > 1):
+                    #     time_start = time_stamp
+                    if right_gesture == "one" and prev_right_gesture != "one": #switch to previous app
+                        # pyautogui.hotkey('command', 'tab')
+                        # added Windows shortcut commands
+                        if system_type == "Mac":
+                            pyautogui.hotkey('command', 'tab')
+                        elif system_type == "Windows":
+                            pyautogui.hotkey('alt', 'tab')
                         # elif right_gesture == "two": #browse windows
                         #     # pyautogui.hotkey('ctrl', 'up')
                         #     if system_type == "Mac":
                         #         pyautogui.hotkey('ctrl', 'up')
                         #     elif system_type == "Windows":
                         #         pyautogui.hotkey('ctrl', 'alt', 'tab')
-                        elif right_gesture == "two": #minimize active window
-                            # pyautogui.hotkey('command', 'm')
-                            if system_type == "Mac":
-                                pyautogui.hotkey('command', 'm')
-                            elif system_type == "Windows":
-                                pyautogui.hotkey('super', 'm')
+                    elif right_gesture == "two" and prev_right_gesture != "two": #minimize active window
+                        # pyautogui.hotkey('command', 'm')
+                        if system_type == "Mac":
+                            pyautogui.hotkey('command', 'm')
+                        elif system_type == "Windows":
+                            pyautogui.hotkey('super', 'm')
+                    elif right_gesture == "three" and prev_right_gesture != "three": #decrease text size
+                        # pyautogui.hotkey('command', 'm')
+                        if system_type == "Mac":
+                            pyautogui.hotkey('command', '-')
+                        elif system_type == "Windows":
+                            pyautogui.hotkey('ctrl', '-')
+                    elif right_gesture == "four" and prev_right_gesture != "four": #increase text size
+                         # pyautogui.hotkey('command', 'm')
+                        if system_type == "Mac":
+                            pyautogui.hotkey('command', '+')
+                        elif system_type == "Windows":
+                            pyautogui.hotkey('ctrl', '+')
                 #changed safari mode to browser mode
                 elif mode == 'browser':
-                    if time_start is None:
-                        time_start = time.time()
-                    time_stamp = time.time()
-                    if (time_stamp - time_start > 1):
-                        time_start = time_stamp
-                        if right_gesture == "one": # new tab
-                            if system_type == "Mac":
-                                keyboard.press(Key.cmd)
-                                keyboard.press('t')
-                                keyboard.release('t')
-                                keyboard.release(Key.cmd)
-                            elif system_type == "Windows":
-                                keyboard.press(Key.ctrl)
-                                keyboard.press('t')
-                                keyboard.release('t')
-                                keyboard.release(Key.ctrl)
-                            #time.sleep(0.5)
+                    # if time_start is None:
+                    #     time_start = time.time()
+                    # time_stamp = time.time()
+                    # if (time_stamp - time_start > 1):
+                    #     time_start = time_stamp
+                    if right_gesture == "one" and prev_right_gesture != "one": # new tab
+                        if system_type == "Mac":
+                            keyboard.press(Key.cmd)
+                            keyboard.press('t')
+                            keyboard.release('t')
+                            keyboard.release(Key.cmd)
+                        elif system_type == "Windows":
+                            keyboard.press(Key.ctrl)
+                            keyboard.press('t')
+                            keyboard.release('t')
+                            keyboard.release(Key.ctrl)
+                        #time.sleep(0.5)
                         
-                        if right_gesture == "two": # address bar
-                            if system_type == "Mac":
-                                keyboard.press(Key.cmd)
-                                keyboard.press('l')
-                                keyboard.release('l')
-                                keyboard.release(Key.cmd)
-                            elif system_type == "Windows":
-                                keyboard.press(Key.ctrl)
-                                keyboard.press('l')
-                                keyboard.release('l')
-                                keyboard.release(Key.ctrl)
-                            #time.sleep(0.5)
-
-                        if right_gesture == "four": # decrease text size
-                            if system_type == "Mac":
-                                keyboard.press(Key.cmd)
-                                keyboard.press('-')
-                                keyboard.release('-')
-                                keyboard.release(Key.cmd)
-                            elif system_type == "Windows":
-                                keyboard.press(Key.ctrl)
-                                keyboard.press('-')
-                                keyboard.release('-')
-                                keyboard.release(Key.ctrl)
-                            #time.sleep(0.5)
+                    if right_gesture == "two" and prev_right_gesture != "two": # address bar
+                        if system_type == "Mac":
+                            keyboard.press(Key.cmd)
+                            keyboard.press('l')
+                            keyboard.release('l')
+                            keyboard.release(Key.cmd)
+                        elif system_type == "Windows":
+                            keyboard.press(Key.ctrl)
+                            keyboard.press('l')
+                            keyboard.release('l')
+                            keyboard.release(Key.ctrl)
+                        #time.sleep(0.5)
+                    if right_gesture == "three" and prev_right_gesture != "three": #close tab
+                        if system_type == "Mac":
+                            keyboard.press(Key.cmd)
+                            keyboard.press('w')
+                            keyboard.release('w')
+                            keyboard.release(Key.cmd)
+                        elif system_type == "Windows":
+                            keyboard.press(Key.ctrl)
+                            keyboard.press('w')
+                            keyboard.release('w')
+                            keyboard.release(Key.ctrl)
+                        #time.sleep(0.5)
+                        # if right_gesture == "four": # decrease text size
+                        #     if system_type == "Mac":
+                        #         keyboard.press(Key.cmd)
+                        #         keyboard.press('-')
+                        #         keyboard.release('-')
+                        #         keyboard.release(Key.cmd)
+                        #     elif system_type == "Windows":
+                        #         keyboard.press(Key.ctrl)
+                        #         keyboard.press('-')
+                        #         keyboard.release('-')
+                        #         keyboard.release(Key.ctrl)
+                        #     #time.sleep(0.5)
                         
-                        if right_gesture == "five": # increase text size
-                            if system_type == "Mac":
-                                keyboard.press(Key.cmd)
-                                keyboard.press('+')
-                                keyboard.release('+')
-                                keyboard.release(Key.cmd)
-                            elif system_type == "Windows":
-                                keyboard.press(Key.ctrl)
-                                keyboard.press('+')
-                                keyboard.release('+')
-                                keyboard.release(Key.ctrl)
-                            #time.sleep(0.5)
+                        # if right_gesture == "five": # increase text size
+                        #     if system_type == "Mac":
+                        #         keyboard.press(Key.cmd)
+                        #         keyboard.press('+')
+                        #         keyboard.release('+')
+                        #         keyboard.release(Key.cmd)
+                        #     elif system_type == "Windows":
+                        #         keyboard.press(Key.ctrl)
+                        #         keyboard.press('+')
+                        #         keyboard.release('+')
+                        #         keyboard.release(Key.ctrl)
+                        #     #time.sleep(0.5)
                             
                             
-                        if right_gesture == 'arrow': # switch tab
-                            if system_type == "Mac":
-                                keyboard.press(Key.ctrl)
-                                keyboard.press(Key.tab)
-                                keyboard.release(Key.tab)
-                                keyboard.release(Key.ctrl)
-                            elif system_type == "Windows":
-                                keyboard.press(Key.ctrl)
-                                keyboard.press(Key.tab)
-                                keyboard.release(Key.tab)
-                                keyboard.release(Key.ctrl)
-                            #time.sleep(0.5)
-
-
-                        if right_gesture == "three": #close tab
-                            if system_type == "Mac":
-                                keyboard.press(Key.cmd)
-                                keyboard.press('w')
-                                keyboard.release('w')
-                                keyboard.release(Key.cmd)
-                            elif system_type == "Windows":
-                                keyboard.press(Key.ctrl)
-                                keyboard.press('w')
-                                keyboard.release('w')
-                                keyboard.release(Key.ctrl)
-                            #time.sleep(0.5)
+                    if right_gesture == 'arrow' and prev_right_gesture != "arrow": # switch tab
+                        if system_type == "Mac":
+                            keyboard.press(Key.ctrl)
+                            keyboard.press(Key.tab)
+                            keyboard.release(Key.tab)
+                            keyboard.release(Key.ctrl)
+                        elif system_type == "Windows":
+                            keyboard.press(Key.ctrl)
+                            keyboard.press(Key.tab)
+                            keyboard.release(Key.tab)
+                            keyboard.release(Key.ctrl)
+                        #time.sleep(0.5)
             
 # ------------------ END MOUSE MODE ------------------
 # ------------------ BEGIN KEYBOARD MODE ------------------
