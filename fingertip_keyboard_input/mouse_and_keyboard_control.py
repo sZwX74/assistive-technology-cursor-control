@@ -439,6 +439,10 @@ while cap.isOpened():
                     tensor_input_image = torch.from_numpy(tensor_input_image_reshaped) / 255
                     character_confidences = active_model(tensor_input_image.to(DEVICE))
 
+                    # normalize output for probabilities if in number mode
+                    if input_mode == -1:
+                        character_confidences = torch.nn.functional.softmax(character_confidences)
+                    
                     top2 = torch.topk(character_confidences, 2).indices.tolist()[0]
                     probs = torch.topk(character_confidences, 2).values.tolist()[0]
 
