@@ -45,6 +45,9 @@ def crop_and_draw_path(drawn_image, points):
     drawn_image = draw_path(drawn_image, points, color=255, thickness=thickness)
 
     # show that drawn image
+    # cv2.rectangle(drawn_image,
+    #               (cropped_x_min, cropped_y_min), (cropped_x_max, cropped_y_max),
+    #               255, 1)
     # cv2.imshow('Drawn Image', drawn_image)
 
     # notice that the slices are flipped, as x is the second dimension and y is the first dimension
