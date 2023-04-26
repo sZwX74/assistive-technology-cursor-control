@@ -132,6 +132,7 @@ left_gesture_list = []
 
 # array to hold drawn points
 fingertip_path_right = []
+new_fingertip_segment = []
 
 # store previous gesture for rising edge of gesture
 prev_left_gesture = None
@@ -144,6 +145,7 @@ right_landmarks = None
 left_landmarks = None
 left_rising_edge_gesture = False
 right_rising_edge_gesture = False
+new_fingertip_segment_appended = False
 
 drawn_image = None
 
@@ -397,13 +399,23 @@ while cap.isOpened():
                 drawn_image = np.zeros(image.shape[0:2], dtype=np.uint8)
                 # cv2.imshow('Drawn Image', drawn_image)
 
-            # if right hand is pose 'one', append fingertip path
+            # if right hand is pose 'one', append the fingertip
+            # if right hand is not pose 'one', pause the fingertip trace
+            if right_gesture != 'one':
+                new_fingertip_segment = []
+                new_fingertip_segment_appended = False
             if right_gesture == 'one':
                 x_pixel = int(right_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x\
                                 * image_width)
+
                 y_pixel = int(right_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y\
                                 * image_height)
-                fingertip_path_right.append((x_pixel, y_pixel))
+                new_fingertip_segment.append((x_pixel, y_pixel))
+                if new_fingertip_segment_appended and len(fingertip_path_right) > 0:
+                    fingertip_path_right[-1] = new_fingertip_segment
+                else:
+                    fingertip_path_right.append(new_fingertip_segment)
+                    new_fingertip_segment_appended = True
 
             # if right hand is a fist, show path on rising edge and reset path
             if right_gesture == 'fist' and prev_right_gesture != 'fist':
@@ -431,10 +443,14 @@ while cap.isOpened():
 
                 # reset path
                 fingertip_path_right = []
+                new_fingertip_segment = []
+                new_fingertip_segment_appended = False
 
             # if right hand is a four, discard drawing
             if right_gesture == "four" and prev_right_gesture != "four":
                 fingertip_path_right = []
+                new_fingertip_segment = []
+                new_fingertip_segment_appended = False
 
             # get hand position (as a percentage)
             if left_landmarks is not None:
@@ -486,7 +502,9 @@ while cap.isOpened():
 
         # draw the path of the fingertip
         if len(fingertip_path_right) > 0:
-            image = keyboard_util.draw_path(image, fingertip_path_right)        
+            for points_arr in fingertip_path_right:
+                if len(points_arr) > 0 :
+                    image = keyboard_util.draw_path(image, points_arr)      
 
         if right_rising_edge_gesture:
             prev_right_gesture = right_gesture
