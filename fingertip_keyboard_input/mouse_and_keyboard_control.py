@@ -322,9 +322,9 @@ while cap.isOpened():
                     # -------- end note -----------
 
 
-                    elif right_gesture == "two":
+                    elif right_gesture == "two" and prev_right_gesture != "two":
                         pyautogui.doubleClick()
-                    elif right_gesture == "one":
+                    elif right_gesture == "one" and prev_right_gesture != "one":
                         pyautogui.rightClick()
                 elif mode == 'volume':
                     if time_start is None:
