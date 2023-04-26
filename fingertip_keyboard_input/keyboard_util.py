@@ -49,6 +49,9 @@ def crop_and_draw_path(drawn_image, points_list):
         drawn_image = draw_path(drawn_image, points_arr, color=255, thickness=thickness)
 
     # show that drawn image
+    # cv2.rectangle(drawn_image,
+    #               (cropped_x_min, cropped_y_min), (cropped_x_max, cropped_y_max),
+    #               255, 1)
     # cv2.imshow('Drawn Image', drawn_image)
 
     # notice that the slices are flipped, as x is the second dimension and y is the first dimension
@@ -123,3 +126,31 @@ def avg_gesture(gesture_list, category, max_size=3):
         gesture_list.pop(0)
     gesture_list.append(category)
     return most_frequent(gesture_list)
+
+#function to create confidence selection boxes. Hard numbers can be fixed.
+def confidence_selection(image, choice1, choice2, percent=0.2, color=((255, 0, 0)), thickness=3):
+    image_height, image_width, __ = image.shape
+    height_ratio_start = 0.25
+    height_ratio_end = 0.75
+    width_ratio_left_start = 0.25
+    width_ratio_left_end = 0.5
+    width_ratio_right_start = 0.75
+    width_ratio_right_end = 1.0
+    left_choice_start_point = [int(image_width * width_ratio_left_start), int(image_height * height_ratio_start)]
+    left_choice_end_point = [int(image_width*width_ratio_left_end), int(image_height * height_ratio_end)]
+    right_choice_start_point = [int(image_width * width_ratio_right_start), int(image_height * height_ratio_start)]
+    right_choice_end_point = [int(image_width * width_ratio_right_end), int(image_height * height_ratio_end)]
+    image = cv2.rectangle(image, left_choice_start_point, left_choice_end_point, color, thickness)
+    image = cv2.rectangle(image, right_choice_start_point, right_choice_end_point, color, thickness)
+
+    cv2.putText(image, str(choice1), [int(image_width * (width_ratio_left_start + width_ratio_left_end)/2), int(image_height * (height_ratio_start + height_ratio_end)/2)],
+                cv2.FONT_HERSHEY_SIMPLEX, 1, color, thickness)
+    cv2.putText(image, str(choice2), [int(image_width * (width_ratio_right_start + width_ratio_right_end)/2), int(image_height * (height_ratio_start + height_ratio_end)/2)],
+                cv2.FONT_HERSHEY_SIMPLEX, 1, color, thickness)
+
+    choice1_start_percentage = [width_ratio_left_start, height_ratio_start]
+    choice1_end_percentage = [width_ratio_left_end, height_ratio_end]
+    choice2_start_percentage = [width_ratio_right_start, height_ratio_start]
+    choice2_end_percentage = [width_ratio_right_end, height_ratio_end]
+
+    return image, choice1_start_percentage, choice1_end_percentage, choice2_start_percentage, choice2_end_percentage

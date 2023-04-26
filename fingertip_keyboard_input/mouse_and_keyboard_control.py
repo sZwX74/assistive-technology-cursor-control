@@ -184,6 +184,15 @@ char_map = {
 # we use char recognition by default
 input_mode = 1 # 1 for char, -1 for digit
 
+#variables to keep track of confidence selection
+choice1 = None
+choice2 = None
+choice_made = None
+choice1_start_percentage = None
+choice1_end_percentage = None
+choice2_start_percentage = None
+choice2_end_percentage = None
+
 # -------- end keyboard input setup --------
 
 
@@ -228,8 +237,14 @@ while cap.isOpened():
 
     # always show bounding boxes if in keyboard mode
     if is_keyboard_mode:
-        # draw the bounding box for the backspace area of the screen
-        image, bksp_space_end_percentage = keyboard_util.draw_modifiers_boxes(image)
+        if choice1 != None and choice2 != None:
+            image, choice1_start_percentage, \
+            choice1_end_percentage, \
+            choice2_start_percentage, choice2_end_percentage = \
+                keyboard_util.confidence_selection(image, choice1, choice2)
+        else:
+            # draw the bounding box for the backspace area of the screen
+            image, bksp_space_end_percentage = keyboard_util.draw_modifiers_boxes(image)
 
     # get hand keypoints
     mp_success, num_hands, results = util.mediapipe_process(image, hands)
@@ -506,12 +521,29 @@ while cap.isOpened():
                     tensor_input_image = torch.from_numpy(tensor_input_image_reshaped) / 255
                     character_confidences = active_model(tensor_input_image.to(DEVICE))
 
-                    _, label = torch.max(character_confidences, axis=1)
-                    print(f'Recognized character: {active_map[int(label)]}')
-                    keyboard.press(active_map[int(label)])
-                    keyboard.release(active_map[int(label)])
+                    # normalize output for probabilities if in number mode
+                    if input_mode == -1:
+                        character_confidences = torch.nn.functional.softmax(character_confidences)
+                    
+                    top2 = torch.topk(character_confidences, 2).indices.tolist()[0]
+                    probs = torch.topk(character_confidences, 2).values.tolist()[0]
 
-                # reset path
+                    #If the top two probabilities are above a threshold, enter confidence selection stage
+                    if probs[1] >= 0.05: #thresholds can be tuned.
+                        choice1 = active_map[int(top2[0])]
+                        choice2 = active_map[int(top2[1])]
+                        print("CONFIDENCE SELECTION: " + "\n")
+                        print(f'Top Choice 1: {active_map[int(top2[0])]} with probability {probs[0]}')
+                        print(f'Top Choice 2: {active_map[int(top2[1])]} with probability {probs[1]}')
+                    else:
+                        _, label = torch.max(character_confidences, axis=1)
+                        print(f'Recognized character: {active_map[int(label)]}')
+                        keyboard.press(active_map[int(label)])
+                        keyboard.release(active_map[int(label)])
+
+                    
+
+                # reset path once submission has been processed
                 fingertip_path_right = []
                 new_fingertip_segment = []
                 new_fingertip_segment_appended = False
@@ -525,30 +557,61 @@ while cap.isOpened():
             # get hand position (as a percentage)
             if left_landmarks is not None:
                 hand_pos_percent = keyboard_util.modifiers_hand_position(mp_hands, left_landmarks)
-            
-                # if in backspace box, backspace once
-                if hand_pos_percent[0] < bksp_space_end_percentage[0] and hand_pos_percent[1]\
-                                                                    < bksp_space_end_percentage[1]:
-                    if not backspace_available:
-                        keyboard.press(Key.backspace)
-                        keyboard.release(Key.backspace)
-                        backspace_available = True
-            
-                # once hand leaves the box, make backspace possible again
-                else:
-                    backspace_available = False
+
+                #if we are currently in the confidence selection stage, then check the user's hand position
+                if choice1 != None and choice2 != None:
+
+                    if choice1_start_percentage is None:
+                        image, choice1_start_percentage, \
+                        choice1_end_percentage, \
+                        choice2_start_percentage, choice2_end_percentage = \
+                            keyboard_util.confidence_selection(image, choice1, choice2)
+
+                    if hand_pos_percent[0] > choice1_start_percentage[0] and \
+                            hand_pos_percent[0] < choice1_end_percentage[0] and \
+                            hand_pos_percent[1] > choice1_start_percentage[1] \
+                            and hand_pos_percent[1] < choice1_end_percentage[1]:
+                        choice_made = choice1
+                    if hand_pos_percent[0] > choice2_start_percentage[0] \
+                            and hand_pos_percent[0] < choice2_end_percentage[0] and \
+                            hand_pos_percent[1] > choice2_start_percentage[1] and \
+                            hand_pos_percent[1] < choice2_end_percentage[1]:
+                        choice_made = choice2
+
+                    #If they have made a choice, then press the key and exit confidence selection
+                    if choice_made != None:
+                        print(f'Chosen character: {choice_made}')
+                        keyboard.press(choice_made)
+                        keyboard.release(choice_made)
+                        choice1 = None
+                        choice2 = None
+                        choice_made = None
                 
-                # if in space box, space once
-                if hand_pos_percent[0] < bksp_space_end_percentage[0] and hand_pos_percent[1]\
-                                                                    > bksp_space_end_percentage[1]:
-                    if not space_available:
-                        keyboard.press(Key.space)
-                        keyboard.release(Key.space)
-                        space_available = True
-            
-                # once hand leaves the box, make space possible again
+                # if not in character selection stage, space/backspace available
                 else:
-                    space_available = False
+                    # if in backspace box, backspace once
+                    if hand_pos_percent[0] < bksp_space_end_percentage[0] and hand_pos_percent[1]\
+                                                                        < bksp_space_end_percentage[1]:
+                        if not backspace_available:
+                            keyboard.press(Key.backspace)
+                            keyboard.release(Key.backspace)
+                            backspace_available = True
+                
+                    # once hand leaves the box, make backspace possible again
+                    else:
+                        backspace_available = False
+                    
+                    # if in space box, space once
+                    if hand_pos_percent[0] < bksp_space_end_percentage[0] and hand_pos_percent[1]\
+                                                                        > bksp_space_end_percentage[1]:
+                        if not space_available:
+                            keyboard.press(Key.space)
+                            keyboard.release(Key.space)
+                            space_available = True
+                
+                    # once hand leaves the box, make space possible again
+                    else:
+                        space_available = False
 
             # backspace once using gesture
             if left_gesture == "one_left" and prev_left_gesture != "one_left":
