@@ -6,7 +6,8 @@ def draw_path(image, points, color=((0, 255, 0)), thickness=10):
         image = cv2.line(image, points[i], points[i+1], color, thickness)
     return image
 
-def crop_and_draw_path(drawn_image, points):
+def crop_and_draw_path(drawn_image, points_list):
+    points =  [item for sublist in points_list for item in sublist]
     # do not draw if there are not enough points
     if len(points) < 2 :
         return None
@@ -42,7 +43,10 @@ def crop_and_draw_path(drawn_image, points):
     # ensure the thickness is also greater than 1
     thickness = max(1, int(dist_from_center / 10))
 
-    drawn_image = draw_path(drawn_image, points, color=255, thickness=thickness)
+    for points_arr in points_list:
+        if len(points_arr) < 2 :
+            continue
+        drawn_image = draw_path(drawn_image, points_arr, color=255, thickness=thickness)
 
     # show that drawn image
     # cv2.rectangle(drawn_image,

@@ -23,6 +23,8 @@ from emnist_model.pytorch_model_class import DEVICE
 
 import keyboard_util
 
+from sys import platform
+
 def load_temp():
     confident_col = np.ones((21,1))
     templates = []
@@ -122,6 +124,15 @@ cap = cv2.VideoCapture(0)
 # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 # print(f"Attempted to set frame width, currently {str(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),str(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
 
+# check system type
+system_type = platform
+if system_type.lower() == "darwin":
+    system_type = "Mac"
+elif system_type.lower().startswith("win"):
+    system_type = "Windows"
+else:
+    system_type = "Linux"
+
 # -------- begin keyboard input setup --------
 keyboard = Controller()
 is_keyboard_mode = True # TODO: will need to modify
@@ -132,6 +143,7 @@ left_gesture_list = []
 
 # array to hold drawn points
 fingertip_path_right = []
+new_fingertip_segment = []
 
 # store previous gesture for rising edge of gesture
 prev_left_gesture = None
@@ -144,6 +156,7 @@ right_landmarks = None
 left_landmarks = None
 left_rising_edge_gesture = False
 right_rising_edge_gesture = False
+new_fingertip_segment_appended = False
 
 drawn_image = None
 
@@ -184,7 +197,7 @@ choice2_end_percentage = None
 
 
 # mode_mapping = {1: 'cursor', 2: 'scroll', 3: 'volume', 4: 'window', 5: 'safari'}
-mode_mapping = {"one_left": 'cursor', "two_left": 'scroll', "three_left": 'volume', "four_left": 'window', "five_left": 'safari'}
+mode_mapping = {"one_left": 'cursor', "two_left": 'scroll', "three_left": 'volume', "four_left": 'window', "five_left": 'browser'}
 
 time_start = None
 leftclick_start = None
@@ -326,9 +339,9 @@ while cap.isOpened():
                     # -------- end note -----------
 
 
-                    elif right_gesture == "two":
+                    elif right_gesture == "two" and prev_right_gesture != "two":
                         pyautogui.doubleClick()
-                    elif right_gesture == "one":
+                    elif right_gesture == "one" and prev_right_gesture != "one":
                         pyautogui.rightClick()
                 elif mode == 'volume':
                     if time_start is None:
@@ -343,66 +356,125 @@ while cap.isOpened():
                         elif right_gesture == "two":
                             keyboard.tap(Key.media_volume_mute)
                 elif mode == 'window':
-                    if time_start is None:
-                        time_start = time.time()
-                    time_stamp = time.time()
-                    if (time_stamp - time_start > 1):
-                        time_start = time_stamp
-                        if right_gesture == "one": #switch to previous app
+                    # if time_start is None:
+                    #     time_start = time.time()
+                    # time_stamp = time.time()
+                    # if (time_stamp - time_start > 1):
+                    #     time_start = time_stamp
+                    if right_gesture == "one" and prev_right_gesture != "one": #switch to previous app
+                        # pyautogui.hotkey('command', 'tab')
+                        # added Windows shortcut commands
+                        if system_type == "Mac":
                             pyautogui.hotkey('command', 'tab')
-                        elif right_gesture == "two": #browse windows
-                            pyautogui.hotkey('ctrl', 'up')
-                        elif right_gesture == "three": #minimize active window
+                        elif system_type == "Windows":
+                            pyautogui.hotkey('alt', 'tab')
+                        # elif right_gesture == "two": #browse windows
+                        #     # pyautogui.hotkey('ctrl', 'up')
+                        #     if system_type == "Mac":
+                        #         pyautogui.hotkey('ctrl', 'up')
+                        #     elif system_type == "Windows":
+                        #         pyautogui.hotkey('ctrl', 'alt', 'tab')
+                    elif right_gesture == "two" and prev_right_gesture != "two": #minimize active window
+                        # pyautogui.hotkey('command', 'm')
+                        if system_type == "Mac":
                             pyautogui.hotkey('command', 'm')
-                elif mode == 'safari':
-                    if time_start is None:
-                        time_start = time.time()
-                    time_stamp = time.time()
-                    if (time_stamp - time_start > 1):
-                        time_start = time_stamp
-                        if right_gesture == "one": # new tab
+                        elif system_type == "Windows":
+                            pyautogui.hotkey('super', 'm')
+                    elif right_gesture == "three" and prev_right_gesture != "three": #decrease text size
+                        # pyautogui.hotkey('command', 'm')
+                        if system_type == "Mac":
+                            pyautogui.hotkey('command', '-')
+                        elif system_type == "Windows":
+                            pyautogui.hotkey('ctrl', '-')
+                    elif right_gesture == "four" and prev_right_gesture != "four": #increase text size
+                         # pyautogui.hotkey('command', 'm')
+                        if system_type == "Mac":
+                            pyautogui.hotkey('command', '+')
+                        elif system_type == "Windows":
+                            pyautogui.hotkey('ctrl', '+')
+                #changed safari mode to browser mode
+                elif mode == 'browser':
+                    # if time_start is None:
+                    #     time_start = time.time()
+                    # time_stamp = time.time()
+                    # if (time_stamp - time_start > 1):
+                    #     time_start = time_stamp
+                    if right_gesture == "one" and prev_right_gesture != "one": # new tab
+                        if system_type == "Mac":
                             keyboard.press(Key.cmd)
                             keyboard.press('t')
                             keyboard.release('t')
                             keyboard.release(Key.cmd)
-                            #time.sleep(0.5)
+                        elif system_type == "Windows":
+                            keyboard.press(Key.ctrl)
+                            keyboard.press('t')
+                            keyboard.release('t')
+                            keyboard.release(Key.ctrl)
+                        #time.sleep(0.5)
                         
-                        if right_gesture == "two": # address bar
+                    if right_gesture == "two" and prev_right_gesture != "two": # address bar
+                        if system_type == "Mac":
                             keyboard.press(Key.cmd)
                             keyboard.press('l')
                             keyboard.release('l')
                             keyboard.release(Key.cmd)
-                            #time.sleep(0.5)
-
-                        if right_gesture == "four": # decrease text size
-                            keyboard.press(Key.cmd)
-                            keyboard.press('-')
-                            keyboard.release('-')
-                            keyboard.release(Key.cmd)
-                            #time.sleep(0.5)
-                        
-                        if right_gesture == "five": # increase text size
-                            keyboard.press(Key.cmd)
-                            keyboard.press('+')
-                            keyboard.release('-')
-                            keyboard.release(Key.cmd)
-                            #time.sleep(0.5)
-                            
-                            
-                        if right_gesture == 'arrow': # switch tab
+                        elif system_type == "Windows":
                             keyboard.press(Key.ctrl)
-                            keyboard.press(Key.tab)
-                            keyboard.release(Key.tab)
+                            keyboard.press('l')
+                            keyboard.release('l')
                             keyboard.release(Key.ctrl)
-                            #time.sleep(0.5)
-
-
-                        if right_gesture == "three": #close tab
+                        #time.sleep(0.5)
+                    if right_gesture == "three" and prev_right_gesture != "three": #close tab
+                        if system_type == "Mac":
                             keyboard.press(Key.cmd)
                             keyboard.press('w')
                             keyboard.release('w')
                             keyboard.release(Key.cmd)
-                            #time.sleep(0.5)
+                        elif system_type == "Windows":
+                            keyboard.press(Key.ctrl)
+                            keyboard.press('w')
+                            keyboard.release('w')
+                            keyboard.release(Key.ctrl)
+                        #time.sleep(0.5)
+                        # if right_gesture == "four": # decrease text size
+                        #     if system_type == "Mac":
+                        #         keyboard.press(Key.cmd)
+                        #         keyboard.press('-')
+                        #         keyboard.release('-')
+                        #         keyboard.release(Key.cmd)
+                        #     elif system_type == "Windows":
+                        #         keyboard.press(Key.ctrl)
+                        #         keyboard.press('-')
+                        #         keyboard.release('-')
+                        #         keyboard.release(Key.ctrl)
+                        #     #time.sleep(0.5)
+                        
+                        # if right_gesture == "five": # increase text size
+                        #     if system_type == "Mac":
+                        #         keyboard.press(Key.cmd)
+                        #         keyboard.press('+')
+                        #         keyboard.release('+')
+                        #         keyboard.release(Key.cmd)
+                        #     elif system_type == "Windows":
+                        #         keyboard.press(Key.ctrl)
+                        #         keyboard.press('+')
+                        #         keyboard.release('+')
+                        #         keyboard.release(Key.ctrl)
+                        #     #time.sleep(0.5)
+                            
+                            
+                    if right_gesture == 'arrow' and prev_right_gesture != "arrow": # switch tab
+                        if system_type == "Mac":
+                            keyboard.press(Key.ctrl)
+                            keyboard.press(Key.tab)
+                            keyboard.release(Key.tab)
+                            keyboard.release(Key.ctrl)
+                        elif system_type == "Windows":
+                            keyboard.press(Key.ctrl)
+                            keyboard.press(Key.tab)
+                            keyboard.release(Key.tab)
+                            keyboard.release(Key.ctrl)
+                        #time.sleep(0.5)
             
 # ------------------ END MOUSE MODE ------------------
 # ------------------ BEGIN KEYBOARD MODE ------------------
@@ -412,13 +484,23 @@ while cap.isOpened():
                 drawn_image = np.zeros(image.shape[0:2], dtype=np.uint8)
                 # cv2.imshow('Drawn Image', drawn_image)
 
-            # if right hand is pose 'one', append fingertip path
+            # if right hand is pose 'one', append the fingertip
+            # if right hand is not pose 'one', pause the fingertip trace
+            if right_gesture != 'one':
+                new_fingertip_segment = []
+                new_fingertip_segment_appended = False
             if right_gesture == 'one':
                 x_pixel = int(right_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x\
                                 * image_width)
+
                 y_pixel = int(right_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y\
                                 * image_height)
-                fingertip_path_right.append((x_pixel, y_pixel))
+                new_fingertip_segment.append((x_pixel, y_pixel))
+                if new_fingertip_segment_appended and len(fingertip_path_right) > 0:
+                    fingertip_path_right[-1] = new_fingertip_segment
+                else:
+                    fingertip_path_right.append(new_fingertip_segment)
+                    new_fingertip_segment_appended = True
 
             # if right hand is a fist, show path on rising edge and reset path
             if right_gesture == 'fist' and prev_right_gesture != 'fist':
@@ -463,10 +545,14 @@ while cap.isOpened():
 
                 # reset path once submission has been processed
                 fingertip_path_right = []
+                new_fingertip_segment = []
+                new_fingertip_segment_appended = False
 
             # if right hand is a four, discard drawing
             if right_gesture == "four" and prev_right_gesture != "four":
                 fingertip_path_right = []
+                new_fingertip_segment = []
+                new_fingertip_segment_appended = False
 
             # get hand position (as a percentage)
             if left_landmarks is not None:
@@ -549,7 +635,9 @@ while cap.isOpened():
 
         # draw the path of the fingertip
         if len(fingertip_path_right) > 0:
-            image = keyboard_util.draw_path(image, fingertip_path_right)        
+            for points_arr in fingertip_path_right:
+                if len(points_arr) > 0 :
+                    image = keyboard_util.draw_path(image, points_arr)      
 
         if right_rising_edge_gesture:
             prev_right_gesture = right_gesture
