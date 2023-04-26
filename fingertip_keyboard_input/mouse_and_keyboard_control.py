@@ -399,23 +399,23 @@ while cap.isOpened():
                 drawn_image = np.zeros(image.shape[0:2], dtype=np.uint8)
                 # cv2.imshow('Drawn Image', drawn_image)
 
-            # if right hand is pose 'one', and left gesture is not 'five', append the fingertip
-            # if right hand is pose 'one', and left gesture is 'five', pause the fingertip trace
+            # if right hand is pose 'one', append the fingertip
+            # if right hand is not pose 'one', pause the fingertip trace
+            if right_gesture != 'one':
+                new_fingertip_segment = []
+                new_fingertip_segment_appended = False
             if right_gesture == 'one':
-                if left_gesture == 'five_left' and prev_left_gesture != 'five_left':
-                    new_fingertip_segment = []
-                    new_fingertip_segment_appended = False
-                if left_gesture != 'five_left' and prev_left_gesture != 'five_left':
-                    x_pixel = int(right_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x\
-                                    * image_width)
-                    y_pixel = int(right_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y\
-                                    * image_height)
-                    new_fingertip_segment.append((x_pixel, y_pixel))
-                    if new_fingertip_segment_appended and len(fingertip_path_right) > 0:
-                        fingertip_path_right[-1] = new_fingertip_segment
-                    else:
-                        fingertip_path_right.append(new_fingertip_segment)
-                        new_fingertip_segment_appended = True
+                x_pixel = int(right_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x\
+                                * image_width)
+
+                y_pixel = int(right_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y\
+                                * image_height)
+                new_fingertip_segment.append((x_pixel, y_pixel))
+                if new_fingertip_segment_appended and len(fingertip_path_right) > 0:
+                    fingertip_path_right[-1] = new_fingertip_segment
+                else:
+                    fingertip_path_right.append(new_fingertip_segment)
+                    new_fingertip_segment_appended = True
 
             # if right hand is a fist, show path on rising edge and reset path
             if right_gesture == 'fist' and prev_right_gesture != 'fist':
