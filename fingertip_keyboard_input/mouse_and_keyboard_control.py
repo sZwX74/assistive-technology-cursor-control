@@ -150,6 +150,9 @@ min_drag = 10 # must drag at least 5 pixels to register as drag
 drag_flag = False # RUSHING or DRAGGING? - Whiplash (2014)
 drag_button = None
 
+# 3D touch flag
+holding_five = False
+
 # store previous gesture for rising edge of gesture
 prev_left_gesture = None
 prev_right_gesture = None
@@ -326,8 +329,19 @@ while cap.isOpened():
                     # cv2.line(image, (0.5 * width, 0.25 * image_height), (1 * width, 0.25 * image_height), (0, 255, 0), 3)
                     # cv2.line(image, (0.5 * width, 0.75 * image_height), (1 * width, 0.75 * image_height), (0, 255, 0), 3)
                     cv2.rectangle(image, (int(0.50 * image_width), int(0.50 * image_height)), (int(0.85 * image_width), int(0.80 * image_height)), (0, 255, 0), 3)
+                    
+                    # Begin/close 3d touch
+                    if right_gesture == 'five' and not holding_five:
+                        pyautogui.click()
+                        pyautogui.press('space')
+                        holding_five = True
+                        
+                    # Close 3d touch
+                    elif holding_five and right_gesture != 'five':
+                        pyautogui.press('space')
+                        holding_five = False
 
-                    if right_gesture == 'arrow' and prev_right_gesture != 'arrow' and not drag_flag:
+                    elif right_gesture == 'arrow' and prev_right_gesture != 'arrow' and not drag_flag:
                         pyautogui.click()
                         prev_center = center
                         
@@ -339,11 +353,11 @@ while cap.isOpened():
                         prev_center = center
                     
                     # support for right click drag
-                    elif right_gesture == 'five' and not drag_flag:
-                        prev_center = center
-                        drag_button = 'right'
-                        drag_flag == True
-                        print(center)
+                    elif right_gesture == 'one' and prev_right_gesture == 'one' and not drag_flag:
+                        diff = (center[0] - prev_center[0], center[1] - prev_center[1])
+                        if max(*map(abs, diff)) > min_drag:
+                            drag_flag = True
+                            drag_button = 'right'
                             
                     # support for left click drag
                     elif right_gesture == 'arrow' and prev_right_gesture == 'arrow' and not drag_flag:
