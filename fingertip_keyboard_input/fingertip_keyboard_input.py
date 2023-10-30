@@ -216,7 +216,7 @@ char_map = {
 }
 
 # we use char recognition by default
-input_mode = 1 # 1 for char, -1 for digit
+input_mode = 1 # 1 for char, 0 for digit
 
 # keyboard setup
 keyboard = Controller()
@@ -277,14 +277,17 @@ while cap.isOpened():
 
             # detect and switch input mode using left hand 4
             if handedness == "Left" and category == "four" and prev_left_gesture != 'four':
-                input_mode *= -1
+                input_mode = (input_mode + 1) % 2
 
             if input_mode == 1:
                 cv2.putText(image, 'input mode: char', (10, image_height - 80),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
-            else:
+            elif input_mode == 0:
                 cv2.putText(image, 'input mode: digit', (10, image_height - 80),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (209, 80, 0, 255), 3)
+            else:
+                # TODO: insert multiframe gesture suite
+                pass
 
             #if we are NOT in confidence selection stage, then right hand is enabled.
             if handedness == 'Right' and choice1 == None and choice2 == None:
@@ -308,10 +311,13 @@ while cap.isOpened():
                             active_model = char_model
                             active_map = char_map
                             tensor_input_image_reshaped = drawn_path_resized.T.reshape((1, 1, 28, 28))
-                        else:
+                        elif input_mode == 0:
                             active_model = digit_model
                             active_map = digit_map
                             tensor_input_image_reshaped = drawn_path_resized.reshape((-1, 28*28))
+                        else:
+                            #TODO: insert multiframe gesture suite
+                            pass
 
                         tensor_input_image = torch.from_numpy(tensor_input_image_reshaped) / 255
                         character_confidences = active_model(tensor_input_image.to(DEVICE))

@@ -82,13 +82,13 @@ def palm_center(keypoints):
 #     print(x, y)
 #     pyautogui.moveTo(x, y, _pause=False)
 
-def absolute_scale(hand_center):
+def absolute_scale(hand_center, move_func = lambda x, y : pyautogui.moveTo(x, y, _pause=False)):
     top_left = [0.50 * image_width, 0.50 * image_height]
     scale = screen_width // (0.33 * image_width)
     #scale_y = screen_height // (0.5 * height)
     out_x = scale * (hand_center[0] - top_left[0])
     out_y = scale * (hand_center[1] - top_left[1])
-    pyautogui.moveTo(out_x, out_y, _pause=False)
+    move_func(out_x, out_y)
 
 
 # def joystick(center, frame):
@@ -145,9 +145,15 @@ left_gesture_list = []
 fingertip_path_right = []
 new_fingertip_segment = []
 
+# drag hyperparameters
+min_drag = 10 # must drag at least 5 pixels to register as drag
+drag_flag = False # RUSHING or DRAGGING? - Whiplash (2014)
+drag_button = None
+
 # store previous gesture for rising edge of gesture
 prev_left_gesture = None
 prev_right_gesture = None
+prev_center = None
 backspace_available = False
 space_available = False
 right_gesture = None
@@ -321,9 +327,38 @@ while cap.isOpened():
                     # cv2.line(image, (0.5 * width, 0.75 * image_height), (1 * width, 0.75 * image_height), (0, 255, 0), 3)
                     cv2.rectangle(image, (int(0.50 * image_width), int(0.50 * image_height)), (int(0.85 * image_width), int(0.80 * image_height)), (0, 255, 0), 3)
 
-                    if right_gesture == 'arrow' and prev_right_gesture != 'arrow':
+                    if right_gesture == 'arrow' and prev_right_gesture != 'arrow' and not drag_flag:
                         pyautogui.click()
-
+                        prev_center = center
+                        
+                    elif right_gesture == "two" and prev_right_gesture != "two" and not drag_flag:
+                        pyautogui.doubleClick()
+                    
+                    elif right_gesture == "one" and prev_right_gesture != "one" and not drag_flag:
+                        pyautogui.rightClick()
+                        prev_center = center
+                    
+                    # support for right click drag
+                    elif right_gesture == 'five' and not drag_flag:
+                        prev_center = center
+                        drag_button = 'right'
+                        drag_flag == True
+                        print(center)
+                            
+                    # support for left click drag
+                    elif right_gesture == 'arrow' and prev_right_gesture == 'arrow' and not drag_flag:
+                        diff = (center[0] - prev_center[0], center[1] - prev_center[1])
+                        if max(*map(abs, diff)) > min_drag:
+                            drag_flag = True
+                            drag_button = 'left'
+                            
+                    elif right_gesture == 'two' and drag_flag:
+                        drag_flag = False
+                        absolute_scale(prev_center)
+                        pyautogui.click() if drag_button == 'left' else pyautogui.rightClick()
+                        absolute_scale(center, move_func = lambda x, y : pyautogui.dragTo(x, y, button = drag_button))
+                        prev_center = None
+                        
                     # --- note: the commented code below allows for "continuous" clicking ---
                     #     where holding the gesture allows for clicking every second
                     #     at the cost of extreme camera lag. This may be wanted, but is
@@ -337,12 +372,7 @@ while cap.isOpened():
                             # leftclick_start = None
                             # pyautogui.click()
                     # -------- end note -----------
-
-
-                    elif right_gesture == "two" and prev_right_gesture != "two":
-                        pyautogui.doubleClick()
-                    elif right_gesture == "one" and prev_right_gesture != "one":
-                        pyautogui.rightClick()
+                        
                 elif mode == 'volume':
                     if time_start is None:
                         time_start = time.time()
