@@ -119,6 +119,7 @@ templates, templates_category = util.load_temp()
 #   https://stackoverflow.com/questions/19448078/python-opencv-access-webcam-maximum-resolution
 # video streaming setup
 cap = cv2.VideoCapture(0)
+face_mesh = mp.solutions.face_mesh.FaceMesh(refine_landmarks=True)
 # cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 # cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
@@ -206,7 +207,7 @@ choice2_end_percentage = None
 
 
 # mode_mapping = {1: 'cursor', 2: 'scroll', 3: 'volume', 4: 'window', 5: 'safari'}
-mode_mapping = {"one_left": 'cursor', "two_left": 'scroll', "three_left": 'volume', "four_left": 'window', "five_left": 'browser'}
+mode_mapping = {"fist_left": 'eye', "fist": 'eye', "one_left": 'cursor', "two_left": 'scroll', "three_left": 'volume', "four_left": 'window', "five_left": 'browser'}
 
 time_start = None
 leftclick_start = None
@@ -306,6 +307,68 @@ while cap.isOpened():
                         pyautogui.hscroll(50)
                     elif right_gesture == "three":
                         pyautogui.hscroll(-50) 
+                elif mode == 'eye':
+                    output = face_mesh.process(image)
+                    landmark_points = output.multi_face_landmarks
+                    frame_h, frame_w, _ = image.shape
+                    if landmark_points:
+                        landmarks = landmark_points[0].landmark
+
+                        # Right eye ball landmarks (pupil boundaries)
+                        right_eyeball = range(474, 478)
+                        for id in right_eyeball:
+                            landmark = landmarks[id]
+                            x = int(landmark.x * frame_w)
+                            y = int(landmark.y * frame_h)
+                            cv2.circle(image, (x, y), 3, (0, 255, 0)) # Right eye green
+                        
+                        # Calculate eye center
+                        eye_anchor = [263, 463, 374, 386]
+
+                        eye_anchor_x = 0
+                        eye_anchor_y = 0
+
+                        for id in eye_anchor:
+                            landmark = landmarks[id]
+                            x = int(landmark.x * frame_w)
+                            y = int(landmark.y * frame_h)
+
+                            eye_anchor_x += int(x / len(eye_anchor))
+                            eye_anchor_y += int(y / len(eye_anchor))
+                            cv2.circle(image, (x, y), 3, (255, 0, 255)) # Anchor Purple
+                        cv2.circle(image, (eye_anchor_x, eye_anchor_y), 3, (255, 0, 0)) # Anchor Blue
+
+                        # -------------------------------
+                        # Left eye tracking for blinking
+                        # -------------------------------
+                        left = [landmarks[145], landmarks[159]]
+                        for landmark in left:
+                            x = int(landmark.x * frame_w)
+                            y = int(landmark.y * frame_h)
+                            cv2.circle(image, (x, y), 3, (0, 255, 255)) # Yellow left eye lids
+                        if (left[0].y - left[1].y) < 0.004:
+                            pyautogui.click()
+                        
+                        # -------------------------------
+                        # Create vector between pupil and anchor
+                        # -------------------------------
+                        pupil_x, pupil_y = 0, 0
+                        for id in right_eyeball:
+                            landmark = landmarks[id]
+                            pupil_x += landmark.x
+                            pupil_y += landmark.y
+                        
+                        pupil_x /= len(right_eyeball)
+                        pupil_y /= len(right_eyeball)
+                        pupil_center_x = int(pupil_x * frame_w)
+                        pupil_center_y = int(pupil_y * frame_h)
+
+                        # pupil center
+                        cv2.circle(image, (pupil_center_x, pupil_center_y), 3, (255, 0, 0), -1) # Right Pupil Blue
+
+                        # vector
+                        cv2.line(image, (eye_anchor_x, eye_anchor_y), (pupil_center_x, pupil_center_y), (0, 0, 255), 2) # Pupil Anchor Diff red
+
                 elif mode == 'cursor' and right_landmarks is not None:
                     frame += 1 # used for filter
                     keypoints = hand_keypoints(right_landmarks)
@@ -331,14 +394,14 @@ while cap.isOpened():
                     cv2.rectangle(image, (int(0.50 * image_width), int(0.50 * image_height)), (int(0.85 * image_width), int(0.80 * image_height)), (0, 255, 0), 3)
                     
                     # Begin/close 3d touch
-                    if right_gesture == 'five' and not holding_five:
+                    if right_gesture == 'five' and not holding_five and system_type == "Mac":
                         pyautogui.click()
-                        pyautogui.press('space')
+                        keyboard.press(Key.space)
                         holding_five = True
                         
                     # Close 3d touch
-                    elif holding_five and right_gesture != 'five':
-                        pyautogui.press('space')
+                    elif holding_five and right_gesture != 'five' and system_type == "Mac":
+                        keyboard.release(Key.space)
                         holding_five = False
 
                     elif right_gesture == 'arrow' and prev_right_gesture != 'arrow' and not drag_flag:
@@ -505,7 +568,6 @@ while cap.isOpened():
                         #         keyboard.release('+')
                         #         keyboard.release(Key.ctrl)
                         #     #time.sleep(0.5)
-                            
                             
                     if right_gesture == 'arrow' and prev_right_gesture != "arrow": # switch tab
                         if system_type == "Mac":
