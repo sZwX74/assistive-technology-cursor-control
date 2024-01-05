@@ -10,7 +10,7 @@ Last Updated: May 2023
 ---
 
 ## Description of Directories
-The most recent work that has been updated is in the `fingertip_keyboard_input` directory, worked on in Fall 2022 and Spring 2023. This directory includes work for both keyboard control and mouse control. Further instructions can be found within the directory's readme.
+The most recent work that has been updated is in the `fingertip_keyboard_input` directory, worked on in Fall 2022, Spring 2023, and Fall 2023. This directory includes work for both keyboard control and mouse control. Further instructions can be found within the directory's readme.
 
 `fingertip_keyboard_input` directly incorporates the work of `two_handed_gestures`, which is work completed by previous members of the group on the mouse control. As such, `two_handed_gestures` was last updated Fall 2022.
 
