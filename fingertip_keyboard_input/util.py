@@ -5,6 +5,7 @@ import alignment
 import os
 import re
 
+current_path = os.path.abspath(os.path.dirname(__file__))
 
 def mediapipe_hand_setup(model_complexity=0,
                          min_detection_confidence=0.9,
@@ -54,12 +55,11 @@ def load_temp(file_path=None):
     templates = []
     templates_category = []
     if not file_path:
-        file_path = "./data/template_image_new_wide_data/"
+        file_path = os.path.abspath(os.path.join(current_path, "data/template_image_new_wide_data/"))
     files = os.listdir(file_path)
-    print(files)
     for file in files:
         name = re.findall(r'(\w+).', file)[0]
-        temp = np.hstack((np.loadtxt(file_path + file, dtype = float, delimiter=','), confident_col))
+        temp = np.hstack((np.loadtxt(os.path.join(file_path, file), dtype = float, delimiter=','), confident_col))
         templates.append(temp)
         templates_category.append(name)
     return templates, templates_category

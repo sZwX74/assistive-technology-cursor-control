@@ -25,12 +25,14 @@ import keyboard_util
 
 from sys import platform
 
+current_path = os.path.abspath(os.path.dirname(__file__))
+
 def load_temp():
     confident_col = np.ones((21,1))
     templates = []
     templates_category = []
     # files = ["temp_data/arrow_temp.csv", "temp_data/fist_temp.csv","temp_data/five_temp.csv","temp_data/four_temp.csv","temp_data/one_temp.csv",]
-    file_path = "./data/template_image_new_wide_data/"
+    file_path = os.path.abspath(os.path.join(current_path, "data/template_image_new_wide_data/"))
     files = os.listdir(file_path)
     print(files)
     for file in files:
@@ -172,10 +174,10 @@ drawn_image = None
 
 # load ML classification model
 digit_model = mnist_model.pytorch_model_class.NetReluShallow(D_in=28 * 28, H1=100, H2=100, D_out=10)
-digit_model.load_model(path = './mnist_model/saved_models')
+digit_model.load_model(path = os.path.abspath(os.path.join(current_path, 'mnist_model/saved_models')))
 
 char_model = emnist_model.pytorch_model_class.CNN_SRM().to(DEVICE)
-char_model.load_model(path = './emnist_model/saved_models')
+char_model.load_model(path = os.path.abspath(os.path.join(current_path, 'emnist_model/saved_models')))
 
 # mapping from model outputs to digits / characters
 # digit mapping based on mnist dataset
